@@ -1,8 +1,10 @@
 use super::token::{TokenKind, Token};
+use super::types::{TypeKind, DynValue};
+use super::traceback::Traceback;
 mod ast;
 use ast::*;
 
-pub fn parse(tokens: Vec<Token>) -> Result<Box<dyn Expression>, String> {
+pub fn parse(tokens: Vec<Token>) -> ParseResult {
     let mut parser = Parser::new(tokens);
     parser.parse()
 }
@@ -12,6 +14,8 @@ struct Parser {
     current: usize,
 }
 
+type ParseResult = Result<Vec<Box<dyn Statement>>, Traceback>;
+
 impl Parser {
     fn new(tokens: Vec<Token>) -> Parser {
         Parser {
@@ -20,17 +24,44 @@ impl Parser {
         }
     }
 
-    fn parse(&mut self) -> Result<Box<dyn Expression>, String> {
-        self.expression()
+    fn parse(&mut self) -> ParseResult {
+        let mut statements = Vec::new();
+        while !self.is_at_end() {
+            match self.statement() {
+                Ok(statement) => statements.push(statement),
+                Err(traceback) => return Err(traceback),
+            }
+        }
+        Ok(statements)
     }
 
-    fn expression(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        if self.match_token(vec![TokenKind::Print]) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let expression = self.expression()?;
+        self.consume(TokenKind::Newline, "Expect newline after expression.")?;
+        Ok(Box::new(PrintStatement { expression }))
+    }
+
+    fn expression_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let expression = self.expression()?;
+        self.consume(TokenKind::Newline, "Expect newline after expression.")?;
+        Ok(Box::new(ExpressionStatement { expression }))
+    }
+
+    fn expression(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         self.equality()
     }
 
-    fn equality(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn equality(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.comparison()?;
-        while self.match_token(vec![TokenKind::BangEqual, TokenKind::EqualEqual]) {
+        while self.match_token(vec![TokenKind::BangEqual, TokenKind::EqualEqual, TokenKind::EqualEqualEqual]) {
             let operator = self.previous();
             let right = self.comparison()?;
             expr = Box::new(Binary::new(expr, operator, right));
@@ -71,10 +102,14 @@ impl Parser {
     }
 
     fn previous(&self) -> Token {
-        self.tokens[self.current - 1].clone()
+        if self.current == 0 {
+            self.tokens[0].clone()
+        } else {
+            self.tokens[self.current - 1].clone()
+        }
     }
 
-    fn comparison(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn comparison(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.term()?;
         while self.match_token(vec![TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) {
             let operator = self.previous();
@@ -84,7 +119,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn term(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.factor()?;
         while self.match_token(vec![TokenKind::Plus, TokenKind::Minus]) {
             let operator = self.previous();
@@ -94,7 +129,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn factor(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.unary()?;
         while self.match_token(vec![TokenKind::Star, TokenKind::Slash]) {
             let operator = self.previous();
@@ -104,7 +139,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn unary(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         if self.match_token(vec![TokenKind::Bang, TokenKind::Minus]) {
             let operator = self.previous();
             let right = self.unary()?;
@@ -113,7 +148,7 @@ impl Parser {
         self.primary()
     }
 
-    fn primary(&mut self) -> Result<Box<dyn Expression>, String> {
+    fn primary(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         if self.match_token(vec![TokenKind::False]) {
             return Ok(Box::new(Literal{token: self.previous()}));
         }
@@ -123,6 +158,11 @@ impl Parser {
         if self.match_token(vec![TokenKind::Nil]) {
             return Ok(Box::new(Literal{token: self.previous()}));
         }
+        if self.match_token(vec![TokenKind::Pass]) {
+            let mut token = self.previous();
+            token.kind = TokenKind::Nil;
+            return Ok(Box::new(Literal{token}));
+        }
         if self.match_token(vec![TokenKind::Number, TokenKind::Stringue]) {
             return Ok(Box::new(Literal{token: self.previous()}));
         }
@@ -131,14 +171,18 @@ impl Parser {
             self.consume(TokenKind::RightParen, "Expect ')' after expression.")?;
             return Ok(Box::new(Grouping{expression: expr}));
         }
-        Err(format!("Expect expression."))
+        Err(Traceback{pos: self.previous().pos.unwrap(), message: Some("Expect expression.".to_string()), ..Default::default()})
     }
 
-    fn consume(&mut self, token_type: TokenKind, message: &str) -> Result<Token, String> {
+    fn consume(&mut self, token_type: TokenKind, message: &str) -> Result<Token, Traceback> {
         if self.check(token_type) {
             return Ok(self.advance());
         }
-        Err(format!("{}", message))
+        Err(Traceback {
+            message: Some(format!("{}", message)),
+            pos: self.previous().pos.unwrap(),
+            ..Default::default()
+        })
     }
 
     fn synchronize(&mut self) {
