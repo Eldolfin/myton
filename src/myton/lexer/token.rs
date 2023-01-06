@@ -7,13 +7,14 @@ pub struct Token{
     pub kind: TokenKind,
     pub value: String,
     pub pos: Option<(usize, usize)>,
+    pub indent: usize,
 }
 
 #[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
-    LeftParen, RightParen,
+    LeftParen, RightParen, LeftBracket, RightBracket,
     Comma, Dot, Plus, Minus, Slash, Star, Colon,
-    Identifier, Stringue, Number,
+    Identifier, Stringue, Number, Percent,
 
     BangEqual, Bang,
     Equal, EqualEqual, EqualEqualEqual,
@@ -22,9 +23,11 @@ pub enum TokenKind {
 
     And, Class, Else, False, Def, For, If, Nil, Or, 
     Print, Return, Super, Selph, True, While, Pass,
+    In,
 
     Comment,
     Space,
+    Indent,
     Newline,
 
     Eof,
@@ -42,12 +45,13 @@ impl Default for Token {
             kind: TokenKind::Eof,
             value: "".to_string(),
             pos: None,
+            indent: 0,
         }
     }
 }
 
 impl TokenKind {
-    fn regex(&self) -> &str {
+    pub fn regex(&self) -> &str {
         match self {
             TokenKind::Number => r"\d+(\.\d+)?",
             TokenKind::Plus => r"\+",
@@ -56,10 +60,11 @@ impl TokenKind {
             TokenKind::Slash => r"/",
             TokenKind::LeftParen => r"\(",
             TokenKind::RightParen => r"\)",
-            TokenKind::Space => r"\s+",
+            TokenKind::LeftBracket => r"\[",
+            TokenKind::RightBracket => r"\]",
             TokenKind::Colon => r":",
-            TokenKind::Comment => r"#.*$",
-            TokenKind::Eof => r"(?m)$",
+            TokenKind::Comment => r"(?m)#.*$",
+            TokenKind::Eof => r"^$",
             TokenKind::Bang => r"!",
             TokenKind::BangEqual => r"!=",
             TokenKind::Equal => r"=",
@@ -71,9 +76,12 @@ impl TokenKind {
             TokenKind::LessEqual => r"<=",
             TokenKind::Comma => r",",
             TokenKind::Dot => r"\.",
-            TokenKind::Newline => r"$",
+            TokenKind::Newline => r"\n",
             TokenKind::Identifier => r"[a-zA-Z_][a-zA-Z0-9_]*",
             TokenKind::Stringue => r#""[^"]*""#,
+            TokenKind::Space => r"[ \t]+",
+            TokenKind::Indent => r"[ ]{2}",
+            TokenKind::Percent => r"%",
 
             TokenKind::And => r"and",
             TokenKind::Class => r"Class",
@@ -91,20 +99,16 @@ impl TokenKind {
             TokenKind::True => r"True",
             TokenKind::While => r"while",
             TokenKind::Pass => r"pass",
-
+            TokenKind::In => r"in",
         }
-    }
-
-    pub fn matcher(&self) -> Regex {
-        static mut MATCHERS: Vec<Regex> = Vec::new();
-        if unsafe { MATCHERS.len() } == 0 {
-            for kind in TokenKind::iter() {
-                let final_regex = format!(r"^({})", kind.regex());
-                unsafe { MATCHERS.push(Regex::new(&final_regex).unwrap()) }
-            }
-        }
-
-        unsafe { MATCHERS[*self as usize].clone() }
     }
 }
 
+impl Token {
+    pub fn from_token_kind(kind: TokenKind) -> Self {
+        Token {
+            kind,
+            ..Default::default()
+        }
+    }
+}

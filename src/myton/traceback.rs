@@ -10,7 +10,7 @@ pub struct Traceback {
 impl Default for Traceback {
     fn default() -> Self {
         Self {
-            pos: (0, 0),
+            pos: (0, 1),
             message: None,
             filename: None,
             function_name: None,

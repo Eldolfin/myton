@@ -19,7 +19,7 @@ pub fn report_trace(trace: traceback::Traceback) -> String {
     } else {
         s.push_str("(unknown):");
     }
-    s.push_str(&format!("{}", trace.pos.1));
+    s.push_str(&format!("{}:{}", trace.pos.1, trace.pos.0));
     if let Some(message) = trace.message {
         s.push_str(&format!(": {}", message));
     }

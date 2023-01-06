@@ -1,48 +1,126 @@
 use termion::{event::Key, raw::RawTerminal};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use std::io::{stdin, stdout, Stdin, Stdout};
-use super::errors::report_trace;
-use super::run;
+use std::io::{stdin, stdout, Stdin, Stdout, Write};
 
 const FORBIDENT_REPL_CHARS: &str = "°éèçàù²µù£¤§¨¹̣̣̣̣̣·´¡⅛£$⅜⅝⅞™±°¬¿°¯ˇ˘˙÷×˝";
+const PROMPT: &str = ">>> ";
 
 pub struct Repl {
     buffer: Buffer,
     cursor: (u16, u16),
     term_size: (u16, u16),
     input_history: History,
-    stdin: Stdin,
-    stdout: RawTerminal<Stdout>
+    stdout: RawTerminal<Stdout>,
 }
 
 impl Repl {
     pub fn new() -> Repl {
         Repl {
             buffer: Buffer::new(),
-            cursor: (0, 0),
+            cursor: (1, 1),
             term_size: termion::terminal_size().unwrap(),
             input_history: History::new(),
-            stdin: stdin(),
             stdout: stdout().into_raw_mode().unwrap(),
         }
     }
 
-    pub fn run(&mut self) {
-        self.welcome_prompt();
-        self.run_loop();
-    }
-
-    fn welcome_prompt(&mut self) {
+    pub fn welcome_prompt(&mut self) {
         self.clear_all();
-        self.print("Myton 0.0.1 (main) [Rust 1.65.0] on linux".to_string());
-        self.print("Type \"help\" for more information.".to_string());
-        self.prompt();
+        self.println("Myton 0.0.1 (main) [Rust 1.65.0] on linux".to_string());
+        self.println("Type \"help\" for more information.".to_string());
     }
 
+    fn update_cursor(&mut self) {
+        self.cursor.0 = (self.buffer.cursor + PROMPT.len() + 1) as u16;
+        print!("{}", termion::cursor::Goto(self.cursor.0, self.cursor.1));
+        self.flush();
+    }
 
-    fn run_loop(&mut self) {
-        for c in self.stdin.keys() {
+    fn exit(&mut self) {
+        self.clear_all();
+        self.println("Byebye!".to_string());
+        return;
+    }
+
+    fn update_buffer(&mut self) {
+        self.clear_line();
+        self.print(self.buffer.buffer.clone());
+    }
+
+    fn clear_line(&mut self) {
+        let prompt_len = PROMPT.len() as u16;
+        print!("{}{}{}",
+            termion::cursor::Goto(prompt_len, self.cursor.1),
+            termion::clear::AfterCursor,
+            termion::cursor::Goto(prompt_len, self.cursor.1)
+        );
+        self.cursor.0 = prompt_len + 1;
+    }
+    
+    fn execute_buffer(&mut self) {
+        self.newline();
+        if self.buffer.buffer.len() > 0 {
+            self.input_history.push(self.buffer.buffer.clone());
+        }
+    }
+
+    fn prompt(&mut self) {
+        self.print(PROMPT.to_string());
+    }
+
+    fn newline(&mut self) {
+        self.cursor = (1, (self.cursor.1 + 1) % self.term_size.1);
+    }
+
+    fn clear_all(&mut self) {
+        print!("{}{}", termion::cursor::Goto(1, 1), termion::clear::All);
+        self.cursor = (1, 1);
+    }
+
+    fn flush(&mut self) {
+        self.stdout.flush().unwrap();
+    }
+
+    pub fn print_result(&mut self, result: Result<String, String>) {
+        match result {
+            Ok(value) => {
+                self.println(value);
+            },
+            Err(error) => {
+                self.printerr(error);
+            }
+        }
+    }
+
+    fn print(&mut self, s: String) {
+        print!("{}{}", termion::cursor::Goto(self.cursor.0, self.cursor.1 ), s);
+        self.cursor.0 += s.len() as u16;
+        self.flush();
+    }
+    
+    pub fn println(&mut self, s: String) {
+        for line in s.lines() {
+            self.print(line.to_string());
+            self.newline();
+        }
+    }
+
+    pub fn printerr(&mut self, s: String) {
+        print!("{}", termion::color::Fg(termion::color::Red));
+        self.println(s);
+        print!("{}", termion::color::Fg(termion::color::Reset));
+    }
+
+}
+
+impl Iterator for Repl {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.prompt();
+        self.buffer.clear();
+        for c in stdin().keys() {
             match c.unwrap() {
                 Key::Up => {
                     if let Some(s) = self.input_history.up() {
@@ -63,65 +141,38 @@ impl Repl {
                 Key::Backspace => {
                     self.buffer.backspace();
                 },
-                Key::Ctrl('c') => {
-                    self.buffer.clear();
-                },
-                Key::Ctrl('d') => {
-                    return;
-                },
                 Key::Char('\n') => {
-                    if self.buffer.buffer.len() > 0 {
-                        self.input_history.push(self.buffer.buffer.clone());
-                    }
-                    self.buffer.clear();
+                    self.execute_buffer();
+                    return Some(self.buffer.buffer.clone());
                 },
                 Key::Char(c) => {
                     if !FORBIDENT_REPL_CHARS.contains(c) {
                         self.buffer.insert(c);
                     }
                 },
+                Key::Ctrl('c') => {
+                    self.buffer.clear();
+                    self.input_history.reset();
+                },
+                Key::Ctrl('d') => {
+                    if self.buffer.is_empty() {
+                        self.exit();
+                        return None;
+                    } else {
+                        self.buffer.clear();
+                        self.input_history.reset();
+                    }
+                },
+                Key::Ctrl('a') => {
+                    self.buffer.home();
+                },
                 _ => {}
             }
+            self.update_buffer();
+            self.update_cursor();
         }
+        None
     }
-    
-    fn execute_buffer(&mut self) {
-        let run_result = run(self.buffer.buffer.clone());
-        if let Err(err) = run_result {
-            let msg = report_trace(err);
-            self.printerr(msg);
-        }
-        self.buffer.clear();
-        self.prompt();
-    }
-
-    fn prompt(&mut self) {
-        self.print(">>> ".to_string());
-    }
-
-    fn newline(&mut self) {
-        self.cursor.1 = (self.cursor.1 + 1) % self.term_size.1;
-    }
-
-    fn clear_all(&mut self) {
-        print!("{}", termion::clear::All);
-    }
-
-    
-    fn print(&mut self, s: String) {
-        for line in s.lines() {
-            print!("{}{}", termion::cursor::Goto(1, self.cursor.1 ), line);
-            self.newline();
-        }
-    }
-
-    fn printerr(&mut self, s: String) {
-        for line in s.lines() {
-            print!("{}{}", termion::cursor::Goto(1, self.cursor.1 ), line);
-            self.newline();
-        }
-    }
-
 }
 
 struct Buffer {
@@ -170,6 +221,14 @@ impl Buffer {
         self.buffer = s;
         self.cursor = self.buffer.len();
     }
+
+    fn is_empty(&self) -> bool {
+        self.buffer.len() == 0
+    }
+
+    fn home(&mut self) {
+        self.cursor = 0;
+    }
 }
 
 struct History {
@@ -186,8 +245,11 @@ impl History {
     }
 
     fn push(&mut self, s: String) {
-        self.history.push(s);
-        self.index = self.history.len();
+        if &s != self.history.last().unwrap_or(&String::new()) {
+            self.history.push(s);
+            self.index = self.history.len();
+        }
+        self.reset();
     }
 
     fn up(&mut self) -> Option<String> {
@@ -211,137 +273,8 @@ impl History {
             None
         }
     }
+
+    fn reset(&mut self) {
+        self.index = self.history.len();
+    }
 }
-
-
-
-// pub fn run_prompt(){
-//     let stdin = stdin();
-//     let mut stdout = stdout().into_raw_mode().unwrap();
-//     let mut input_buffer = String::new();
-//     let mut input_history : Vec<(String, Vec<usize>)> = Vec::new();
-//     let mut input_history_index = 0;
-//     let mut y_pos = 0;
-//     let mut x_pos = 5;
-//     let mut buffer_pos = 0;
-//     let mut line_breaks: Vec<usize> = vec![0];
-//     let term_size = termion::terminal_size().unwrap();
-//     let term_height = term_size.1;
-//
-//     print!("{}{}Myton 0.0.1 (main) [Rust 1.65.0] on linux", termion::clear::All, termion::cursor::Goto(1, y_pos));
-//     y_pos += 1;
-//     print!("{}Type \"help\" for more information.", termion::cursor::Goto(1, y_pos));
-//     y_pos += 1;
-//     print!("{}>>> ", termion::cursor::Goto(1, y_pos));
-//     stdout.flush().unwrap();
-//     for c in stdin.keys() {
-//         match c.unwrap() {
-//             Key::Up => {
-//                 if input_history_index <= 0 {
-//                     continue;
-//                 }
-//
-//                 input_history_index -= 1;
-//                 input_buffer = input_history[input_history_index].0.clone();
-//                 print!("{}{}{}", termion::cursor::Goto(5, y_pos), termion::clear::AfterCursor, input_buffer);
-//                 stdout.flush().unwrap();
-//                 buffer_pos = input_buffer.len();
-//                 x_pos = buffer_pos + 5;
-//                 print!("{}", termion::cursor::Goto(5 + buffer_pos , y_pos));
-//             },
-//             Key::Down => {
-//                 if input_history_index >= input_history.len() {
-//                     continue;
-//                 }
-//
-//                 input_history_index += 1;
-//                 if input_history_index == input_history.len() {
-//                     input_buffer.clear();
-//                 } else {
-//                     input_buffer = input_history[input_history_index].0.clone();
-//                 }
-//                 print!("{}{}{}", termion::cursor::Goto(5, y_pos), termion::clear::AfterCursor, input_buffer);
-//                 x_pos = input_buffer.len() + 5;
-//                 stdout.flush().unwrap();
-//             },
-//             Key::Left => {
-//                 if buffer_pos > 0 {
-//                     buffer_pos -= 1;
-//                     if x_pos == 5 {
-//                         y_pos -= 1;
-//                         x_pos = term_size.0  - 1;
-//                     } else {
-//                         x_pos -= 1;
-//                     }
-//                     print!("{}", termion::cursor::Goto(x_pos , y_pos));
-//                     stdout.flush().unwrap();
-//                 }
-//             },
-//             Key::Right => {
-//                 if let Ok((x, _)) = termion::cursor::DetectCursorPos::cursor_pos(&mut stdout){
-//                     if x < 5 + input_buffer.len()  {
-//                         print!("{}", termion::cursor::Right(1));
-//                         stdout.flush().unwrap();
-//                     }
-//                 }
-//             },
-//             Key::Backspace => {
-//                 if x_pos > 5 {
-//                     input_buffer.remove((x_pos-5) );
-//                     print!("{}{}{}{}", termion::cursor::Goto(5, y_pos), termion::clear::AfterCursor, input_buffer, termion::cursor::Goto(x_pos  -1, y_pos));
-//                     stdout.flush().unwrap();
-//                 }
-//             },
-//             Key::Ctrl('c') => {
-//                 print!("{}{}", termion::cursor::Goto(5, y_pos), termion::clear::AfterCursor);
-//                 input_buffer.clear();
-//             },
-//             Key::Ctrl('d') => {
-//                 return;
-//             },
-//             Key::Char('\n') => {
-//                 if input_buffer.len() > 0 {
-//                     input_history.push((input_buffer.clone(), line_breaks.clone()));
-//                     line_breaks = vec![0];
-//                     x_pos = 5;
-//                     buffer_pos = 0;
-//                     
-//                     input_history_index = input_history.len();
-//                 }
-//
-//                 print!("\n{}", termion::cursor::Goto(1, y_pos));
-//                 y_pos = (y_pos + 1) % term_height;
-//                 let run_result = run(input_buffer.clone(), "");
-//                 if let Err(err) = run_result {
-//                     let msg = report_trace(err);
-//                     for line in msg.lines() {
-//                         print!("{}{}", termion::cursor::Goto(1, y_pos), line);
-//                         y_pos = (y_pos + 1) % term_height;
-//                     }
-//                 }
-//                 input_buffer.clear();
-//                 print!("{}>>> ", termion::cursor::Goto(1, y_pos));
-//             },
-//             Key::Char(c) => {
-//                 if FORBIDENT_REPL_CHARS.contains(c) {
-//                     continue;
-//                 }
-//
-//                 input_buffer.insert((buffer_pos) , c);
-//                 buffer_pos += 1;
-//                 x_pos += 1;
-//                 let last_break = line_breaks.iter().filter(|&&x| x <= buffer_pos).last().unwrap();
-//                 let next_break_maybe = line_breaks.iter().filter(|&&x| x > buffer_pos).next();
-//                 let next_break = match next_break_maybe {
-//                     Some(x) => x.to_owned(),
-//                     None => input_buffer.len(),
-//                 };
-//                 let slice = &input_buffer[*last_break..next_break];
-//                 print!("{}{}{}", termion::cursor::Goto(5, y_pos), slice, termion::cursor::Goto(x_pos , y_pos));
-//             },
-//             _ => {}
-//         }
-//
-//         stdout.flush().unwrap();
-//     }
-// }

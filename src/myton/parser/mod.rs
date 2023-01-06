@@ -1,7 +1,8 @@
-use super::token::{TokenKind, Token};
-use super::types::{TypeKind, DynValue};
-use super::traceback::Traceback;
 mod ast;
+
+use super::token::{TokenKind, Token};
+use super::traceback::Traceback;
+use super::types::DynValue;
 use ast::*;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult {
@@ -27,20 +28,104 @@ impl Parser {
     fn parse(&mut self) -> ParseResult {
         let mut statements = Vec::new();
         while !self.is_at_end() {
-            match self.statement() {
-                Ok(statement) => statements.push(statement),
-                Err(traceback) => return Err(traceback),
-            }
+            statements.push(self.declaration()?);
         }
         Ok(statements)
     }
 
+    fn declaration(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        if self.match_token(vec![TokenKind::Identifier]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let name = self.previous().value;
+
+        let mut initializer = None;
+
+        if self.match_token(vec![TokenKind::Equal]) {
+            initializer = Some(self.expression()?);
+        }
+
+        self.consume(TokenKind::Newline, "Expect newline after variable declaration.")?;
+        Ok(Box::new(VarStatement {
+            name,
+            initializer,
+        }))
+    }
+
     fn statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
-        if self.match_token(vec![TokenKind::Print]) {
+        if self.match_token(vec![TokenKind::If]) {
+            self.if_statement()
+        } else if self.match_token(vec![TokenKind::While]) {
+            self.while_statement()
+        } else if self.match_token(vec![TokenKind::For]) {
+            self.for_statement()
+        } else if self.match_token(vec![TokenKind::Print]) {
             self.print_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn while_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let condition = self.expression()?;
+        self.consume(TokenKind::Colon, "Expect ':' after while condition.")?;
+        self.consume(TokenKind::Newline, "Expect newline after while condition.")?;
+        let body = self.block_statement()?;
+
+        Ok(Box::new(WhileStatement {
+            condition,
+            body,
+        }))
+    }
+
+    fn for_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let variable = self.consume(TokenKind::Identifier, "Expect variable name.")?.value;
+        self.consume(TokenKind::In, "Expect 'in' after variable name.")?;
+        let collection = self.expression()?;
+        self.consume(TokenKind::Colon, "Expect ':' after for collection.")?;
+        self.consume(TokenKind::Newline, "Expect newline after for collection.")?;
+        let body = self.block_statement()?;
+
+        Ok(Box::new(ForeachStatement {
+            variable,
+            collection,
+            body,
+        }))
+    }
+
+    fn if_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let condition = self.expression()?;
+        self.consume(TokenKind::Colon, "Expect ':' after if condition.")?;
+        self.consume(TokenKind::Newline, "Expect newline after if condition.")?;
+        let then_branch = self.block_statement()?;
+
+        let else_branch = if self.match_token(vec![TokenKind::Else]) {
+            self.consume(TokenKind::Colon, "Expect ':' after else.")?;
+            self.consume(TokenKind::Newline, "Expect newline after else.")?;
+            Some(self.block_statement()?)
+        } else { None };
+
+        Ok(Box::new(IfStatement {
+            condition,
+            then_branch,
+            else_branch,
+        }))
+    }
+
+    fn block_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let indent_level = self.previous().indent;
+        let mut statements = Vec::new();
+        while !self.is_at_end() && self.peek().indent > indent_level {
+            statements.push(self.declaration()?);
+        }
+        Ok(Box::new(BlockStatement {
+            statements,
+        }))
     }
 
     fn print_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
@@ -56,8 +141,33 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Box<dyn Expression>, Traceback> {
-        self.equality()
+        self.or()
     }
+
+    fn or(&mut self) -> Result<Box<dyn Expression>, Traceback> {
+        let mut expr = self.and()?;
+
+        while self.match_token(vec![TokenKind::Or]) {
+            let operator = self.previous();
+            let right = self.and()?;
+            expr = Box::new(Logical::new(expr, operator, right));
+        }
+
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Box<dyn Expression>, Traceback> {
+        let mut expr = self.equality()?;
+
+        while self.match_token(vec![TokenKind::And]) {
+            let operator = self.previous();
+            let right = self.equality()?;
+            expr = Box::new(Logical::new(expr, operator, right));
+        }
+
+        Ok(expr)
+    }
+
 
     fn equality(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.comparison()?;
@@ -101,6 +211,10 @@ impl Parser {
         self.tokens[self.current].kind.clone()
     }
 
+    fn peek(&self) -> Token {
+        self.tokens[self.current].clone()
+    }
+
     fn previous(&self) -> Token {
         if self.current == 0 {
             self.tokens[0].clone()
@@ -131,7 +245,7 @@ impl Parser {
 
     fn factor(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.unary()?;
-        while self.match_token(vec![TokenKind::Star, TokenKind::Slash]) {
+        while self.match_token(vec![TokenKind::Star, TokenKind::Slash, TokenKind::Percent]) {
             let operator = self.previous();
             let right = self.unary()?;
             expr = Box::new(Binary::new(expr, operator, right));
@@ -149,29 +263,34 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Box<dyn Expression>, Traceback> {
-        if self.match_token(vec![TokenKind::False]) {
-            return Ok(Box::new(Literal{token: self.previous()}));
-        }
-        if self.match_token(vec![TokenKind::True]) {
-            return Ok(Box::new(Literal{token: self.previous()}));
-        }
-        if self.match_token(vec![TokenKind::Nil]) {
-            return Ok(Box::new(Literal{token: self.previous()}));
+        if self.match_token(vec![TokenKind::Number, TokenKind::Stringue, TokenKind::False, TokenKind::True, TokenKind::Nil]) {
+            return Ok(Box::new(Literal::new(self.previous())));
         }
         if self.match_token(vec![TokenKind::Pass]) {
             let mut token = self.previous();
             token.kind = TokenKind::Nil;
-            return Ok(Box::new(Literal{token}));
-        }
-        if self.match_token(vec![TokenKind::Number, TokenKind::Stringue]) {
-            return Ok(Box::new(Literal{token: self.previous()}));
+            return Ok(Box::new(Literal::new(token)));
         }
         if self.match_token(vec![TokenKind::LeftParen]) {
             let expr = self.expression()?;
             self.consume(TokenKind::RightParen, "Expect ')' after expression.")?;
             return Ok(Box::new(Grouping{expression: expr}));
         }
-        Err(Traceback{pos: self.previous().pos.unwrap(), message: Some("Expect expression.".to_string()), ..Default::default()})
+        if self.match_token(vec![TokenKind::Identifier]) {
+            return Ok(Box::new(Variable{token: self.previous()}));
+        }
+        if self.match_token(vec![TokenKind::LeftBracket]) {
+            let mut elements = Vec::new();
+            while {
+                elements.push(self.expression()?);
+                self.consume(TokenKind::Comma, "Expect ',' after expression.").is_ok()
+            } {}
+
+            self.consume(TokenKind::RightBracket, "Expect ']' after expression.")?;
+            return Ok(Box::new(List{elements}));
+        }
+
+        Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})
     }
 
     fn consume(&mut self, token_type: TokenKind, message: &str) -> Result<Token, Traceback> {

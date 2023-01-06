@@ -4,12 +4,16 @@ pub mod token;
 use token::*;
 use super::traceback::Traceback;
 use strum::IntoEnumIterator;
+use regex::Regex;
 
 pub struct Lexer {
     input: String,
     pub position: (usize,usize),
     pub idx: usize,
     ignored_tokens: Vec<TokenKind>,
+    regexs: Vec<Regex>,
+    tokens: Vec<Token>,
+    cur_indent: usize,
 }
 
 impl Lexer {
@@ -18,49 +22,53 @@ impl Lexer {
             input,
             position: (0, 1),
             idx: 0,
-            ignored_tokens: vec![TokenKind::Space, TokenKind::Comment],
+            ignored_tokens: vec![TokenKind::Space, TokenKind::Comment, TokenKind::Indent],
+            regexs: TokenKind::iter().map(|kind| {Regex::new(format!(r"^{}", kind.regex()).as_str()).unwrap()}).collect(),
+            tokens: Vec::new(),
+            cur_indent: 0,
         };
         lexer
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, Traceback> {
-        let mut tokens: Vec<Token> = Vec::new();
-
-        while tokens.last().map(|t| t.kind) != Some(TokenKind::Eof) {
+        while self.tokens.last().map(|t| t.kind) != Some(TokenKind::Eof) {
             let res = self.step();
-            if let Some(token) = res {
+            if let Some(mut token) = res {
+                token.pos = Some(self.position);
+                token.indent = self.cur_indent;
                 if !self.ignored_tokens.contains(&token.kind){
-                    tokens.push(token);
+                    self.tokens.push(token.clone());
+                }
+                match token.kind {
+                    TokenKind::Newline => {
+                        self.cur_indent = 0;
+                    },
+                    TokenKind::Indent => {
+                        self.cur_indent += 1;
+                    },
+                    _ => {},
                 }
             } else {
                 return Err(Traceback {
                     pos: self.position,
                     message: Some("invalid syntax".to_string()),
-                    code: Some(self.input.clone()),
                     ..Default::default()
                 });
             }
         }
 
-        if tokens.len() > 1 && tokens[tokens.len()-2].kind != TokenKind::Newline {
-            tokens.insert(tokens.len()-1, 
-                Token {
-                    kind: TokenKind::Newline,
-                    value: "".to_string(),
-                    pos: None,
-                });
+        if self.tokens.len() > 1 && self.tokens[self.tokens.len()-2].kind != TokenKind::Newline {
+            self.tokens.insert(self.tokens.len()-1, 
+                Token::from_token_kind(TokenKind::Newline))
         }
 
-        return Ok(tokens);
+        return Ok(self.tokens.clone());
     }
 
     fn step(&mut self) -> Option<Token>{
         let mut matches: Vec<(TokenKind, String)> = Vec::new();
         
-        for kind in TokenKind::iter(){
-            
-            let re = kind.matcher();
-            
+        for (kind,re) in TokenKind::iter().zip(self.regexs.iter()) {
             if re.is_match(&self.input[self.idx..]){
                 let value = re.captures(&self.input[self.idx..])
                     .unwrap()
@@ -73,9 +81,24 @@ impl Lexer {
             }
         }
 
-        if matches.len() == 0 {
-            return None;
+        if matches.len() > 1 {
+            matches.retain(|(kind, _)| *kind != TokenKind::Space);
         }
+
+        if matches.len() == 0 {
+            if self.idx == self.input.len() {
+                return Some(Token::from_token_kind(TokenKind::Eof));
+            } else {
+                return None;
+            }
+        }
+
+        let max_match = matches.iter().map(|(_,v)| v.len()).max().unwrap();
+
+        matches = matches.iter()
+            .cloned()
+            .filter(|(_, value)| value.len() == max_match)
+            .collect::<Vec<_>>();
 
         if matches.len() > 1 {
             // If there is an identifier, it should be the only match
@@ -86,8 +109,6 @@ impl Lexer {
             .max_by_key(|(_, value)| value.len())
             .unwrap()
             .clone();
-
-        let token_pos = self.position;
 
         self.idx += value.len();
         self.position.0 += value.len();
@@ -101,7 +122,14 @@ impl Lexer {
             value.pop();
         }
 
-        return Some(Token {kind, value, pos: Some(token_pos)});
+        return Some(Token {kind, value, ..Default::default()});
+    }
+
+    fn prev(&self) -> Option<Token> {
+        if self.tokens.len() == 0 {
+            return None;
+        }
+        return Some(self.tokens[self.tokens.len()-1].clone());
     }
 }
 
@@ -110,19 +138,23 @@ mod tests {
     use crate::myton::errors::report_trace;
 
     use super::*;
+    use TokenKind::*;
 
-    fn vec_compare<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> bool {
-        (a.len() == b.len()) && a.iter().zip(b.iter()).all(|(x, y)| x == y)
-    }
-
-    fn test_lexer_case(input: &str, expected: Vec<Token>) {
+    fn test_lexer_case(input: &str, expected: Vec<TokenKind>) {
         let mut lexer = Lexer::new(input.to_string());
         let lex_res = lexer.tokenize();
-        assert!(lex_res.is_ok(), "Lexer failed to tokenize, error: {:?}", report_trace(lex_res.err().unwrap()));
+        assert!(lex_res.is_ok(), "Lexer failed to tokenize {}, \nerror: {:?}", input, report_trace(lex_res.err().unwrap()));
         let tokens = lex_res.ok().unwrap();
-        let diff = tokens.iter().zip(expected.iter()).filter(|(a, b)| a != b).collect::<Vec<_>>();
-        let message = format!("Lexer failed to tokenize correctly, diff: {:?}", diff);
-        assert!(vec_compare(tokens.clone(), expected.clone()), "{}", message);
+
+        let diff = tokens.iter().zip(expected.iter()).filter(|(a, b)| a.kind != **b).collect::<Vec<_>>();
+        let mut message = format!("Lexer failed to tokenize correctly \"{}\", diff: {:?}\n", input, diff);
+        message.push_str("got:expected\n");
+        for (token, kind) in tokens.iter().zip(expected.iter()) {
+            message.push_str(&format!("{:?}:{:?}\n", token.kind, kind));
+        }
+
+
+        assert!(diff.len()==0, "{}", message);
     }
 
     #[test]
@@ -130,79 +162,136 @@ mod tests {
         test_lexer_case(
             "1+2",
             vec![
-                Token{kind: TokenKind::Number, value: "1".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Plus, value: "+".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "2".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Newline, value: "".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Eof, value: "".to_string(), pos: Some((0,0))},
+                Number,
+                Plus,
+                Number,
+                Newline,
+                Eof
             ]
         );
 
         test_lexer_case(
             "(1*2) + 3 - 4/1.2",
             vec![
-                Token{kind: TokenKind::LeftParen, value: "(".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "1".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Star, value: "*".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "2".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::RightParen, value: ")".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Plus, value: "+".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "3".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Minus, value: "-".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "4".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Slash, value: "/".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "1.2".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Newline, value: "".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Eof, value: "".to_string(), pos: Some((0,0))},
+                LeftParen,
+                Number,
+                Star,
+                Number,
+                RightParen,
+                Plus,
+                Number,
+                Minus,
+                Number,
+                Slash,
+                Number,
+                Newline,
+                Eof
             ]
         );
 
         test_lexer_case(
             "var.1=(b!=c<>>=d)",
             vec![
-                Token{kind: TokenKind::Identifier, value: "var".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Dot, value: ".".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Number, value: "1".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Equal, value: "=".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::LeftParen, value: "(".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Identifier, value: "b".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::BangEqual, value: "!=".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Identifier, value: "c".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Less, value: "<".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Greater, value: ">".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::GreaterEqual, value: ">=".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Identifier, value: "d".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::RightParen, value: ")".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Newline, value: "".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Eof, value: "".to_string(), pos: Some((0,0))},
+                Identifier,
+                Dot,
+                Number,
+                Equal,
+                LeftParen,
+                Identifier,
+                BangEqual,
+                Identifier,
+                Less,
+                Greater,
+                GreaterEqual,
+                Identifier,
+                RightParen,
+                Newline,
+                Eof
             ]
         );
 
         test_lexer_case(
-            "\"hello world\" # this is a comment",
+            "\"hello world\" # this is a comment\n# this is another comment\n print # this is a comment",
             vec![
-                Token{kind: TokenKind::Stringue, value: "hello world".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Newline, value: "".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Eof, value: "".to_string(), pos: Some((0,0))},
+                Stringue,
+                Newline,
+                Newline,
+                Print,
+                Newline,
+                Eof
             ]
         );
 
         test_lexer_case(
             "def main() -> int<>:",
             vec![
-                Token{kind: TokenKind::Def, value: "def".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Identifier, value: "main".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::LeftParen, value: "(".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::RightParen, value: ")".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Minus, value: "-".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Greater, value: ">".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Identifier, value: "int".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Less, value: "<".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Greater, value: ">".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Colon, value: ":".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Newline, value: "".to_string(), pos: Some((0,0))},
-                Token{kind: TokenKind::Eof, value: "".to_string(), pos: Some((0,0))},
+                Def,
+                Identifier,
+                LeftParen,
+                RightParen,
+                Minus,
+                Greater,
+                Identifier,
+                Less,
+                Greater,
+                Colon,
+                Newline,
+                Eof
             ]
         );
+
+        test_lexer_case(
+            "a=1\nb=2",
+            vec![
+                Identifier,
+                Equal,
+                Number,
+                Newline,
+                Identifier,
+                Equal,
+                Number,
+                Newline,
+                Eof
+            ]
+        );
+
+        test_lexer_case(
+            "if 1:\n    print 1\nelse:\n    print \"lol\"",
+            vec![
+                If,
+                Number,
+                Colon,
+                Newline,
+                Print,
+                Number,
+                Newline,
+                Else,
+                Colon,
+                Newline,
+                Print,
+                Stringue,
+                Newline,
+                Eof
+            ]
+        );
+
+        test_lexer_case(
+            "for i in [1,2,3]:", 
+            vec![
+                For,
+                Identifier,
+                In,
+                LeftBracket,
+                Number,
+                Comma,
+                Number,
+                Comma,
+                Number,
+                RightBracket,
+                Colon,
+                Newline,
+                Eof
+            ]
+        )
     }
 }
