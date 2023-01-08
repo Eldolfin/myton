@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use super::types::{DynValue};
 use std::rc::Rc;
@@ -29,13 +30,20 @@ impl Environment {
         if let Some(value) = self.values.get(&name) {
             Some(value.clone())
         } else if let Some(enclosing) = &self.enclosing {
-            enclosing.borrow().get(name)
+            enclosing.borrow_mut().get(name)
         } else {
             None
         }
     }
 
     pub fn set(&mut self, name: String, value: DynValue) {
+        if let Some(enclosing) = &self.enclosing {
+            if enclosing.borrow_mut().get(name.clone()).is_some() {
+                enclosing.borrow_mut().set(name, value);
+                return;
+            }
+        }
+
         self.values.insert(name, value);
     }
 
@@ -104,7 +112,7 @@ mod tests {
         let env = make_env();
         env.borrow_mut().set("clock".to_string(), value);
 
-        let value = env.borrow().get("clock".to_string());
+        let value = env.borrow_mut().get("clock".to_string());
 
         assert!(value.is_some());
 
@@ -145,10 +153,10 @@ mod tests {
 
         assert!(borrowed_local.get("d".to_string()).is_none());
 
-        let borrowed_global = global.borrow();
+        let borrowed_global = global.borrow_mut();
         assert!(borrowed_global.get("a".to_string()).is_some());
         assert!(borrowed_global.get("a".to_string()).unwrap().is_number());
-        assert_eq!(borrowed_global.get("a".to_string()).unwrap().as_number(), 1.0);
+        assert_eq!(borrowed_global.get("a".to_string()).unwrap().as_number(), 3.0);
     }
 
     #[test]
@@ -157,7 +165,7 @@ mod tests {
 
         env.borrow_mut().set_env_var(EnvVariable::NewLines, DynValue::from(1.0));
 
-        assert_eq!(env.borrow().get_env_var(EnvVariable::NewLines).as_number(), 1.0);
+        assert_eq!(env.borrow_mut().get_env_var(EnvVariable::NewLines).as_number(), 1.0);
 
         let enclosed_env = make_env_enclosed(env.clone());
         let mut borrowed_enclosed_env = enclosed_env.borrow_mut();
@@ -165,6 +173,6 @@ mod tests {
         assert!(borrowed_enclosed_env.get_env_var(EnvVariable::NewLines).as_number() == 1.0);
         borrowed_enclosed_env.set_env_var(EnvVariable::NewLines, DynValue::from(2.0));
 
-        assert!(env.borrow().get_env_var(EnvVariable::NewLines).as_number() == 2.0);
+        assert!(env.borrow_mut().get_env_var(EnvVariable::NewLines).as_number() == 2.0);
     }
 }

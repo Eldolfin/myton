@@ -140,35 +140,103 @@ impl MyWrite for Stdout {
 mod tests {
     use super::*;
 
-    fn test_run_case(source: &str, expected: &str) {
+    fn test_run_case(test_case_name : &str, source: &str, expected: &str) {
         let output = Rc::new(RefCell::new(Box::new(Vec::new()) as Box<dyn MyWrite>));
         let mut interpreter = Interpreter::new_with_output(output.clone());
-        interpreter.run(source.to_string()).unwrap();
+        interpreter.run(source.to_string()).unwrap_or_else(|e| panic!("Error running test case {}: {}", test_case_name, e));
 
-        assert_eq!(output.borrow().get_string().unwrap().as_str(), expected);
+        assert_eq!(output.borrow().get_string().unwrap().as_str(), expected, "Test case {} failed", test_case_name);
     }
 
     #[test]
     fn test_run() {
-        test_run_case("print 1", "1\n");
-        test_run_case("print 1 + 1", "2\n");
-        test_run_case("a=1", "");
-        test_run_case("a=1\nprint a", "1\n");
-        test_run_case("a=1\na=2\nprint a", "2\n");
-        test_run_case("a=1\nprint a\na=2\nprint a", "1\n2\n");
-        test_run_case("a=1\nprint(a)", "1\n");
-        test_run_case("for a in [1,2,3]:\n  print(a)", "1\n2\n3\n");
-        test_run_case("a=False\nwhile a<10:\n  a=a+1\nprint(a)", "10\n");
-        test_run_case(
-"n=27
-i=0
-while n != 1:
-  if n%2==0:
-    n=n/2
-  else:
-    n=3*n+1
-  i=i+1
-print(i)", "111\n");
+        // simple print
+        test_run_case("simple print", "print 1", "1\n");
+
+        // simple math
+        test_run_case("simple math", "print 1 + 2", "3\n");
+
+        // quiet assignment
+        test_run_case("quiet assignment", "a = 1", "");
+
+        // simple assignment
+        test_run_case("simple assignment", "a = 1\nprint a", "1\n");
+
+        // simple re-assigment
+        test_run_case("simple re-assignment", "a = 1\na = 2\nprint a", "2\n");
+
+        // simple foreach
+        test_run_case("simple foreach", r#"for a in [1,2,3]:
+                         print(a)"#, "1\n2\n3\n");
+
+        // simple while
+        test_run_case("simple while",
+                        r#"a=False
+                         while a<10:
+                           a=a+1
+                         print(a)"#, "10\n");
+
+        // collatz of 27
+        test_run_case("collatz of 27",
+            r#"n=27
+               i=0
+               while n != 1:
+                 if n%2==0:
+                   n=n/2
+                 else:
+                   n=3*n+1
+                 i=i+1
+               print(i)"#, "111\n");
+
+        // simple function
+        test_run_case("simple function",
+            "def hi():\n  print(\"hi\")\nhi()", "hi\n");
+
+        // simple 1-arg function
+        test_run_case("simple 1-arg function",
+            "def f(x):\n  print x+1\nf(1)", "2\n");
+
+        // simple multi-args function
+        test_run_case("simple multi-args function",
+            "def f(x,y):\n  print x+y\nf(1,2)", "3\n");
+
+// simple return function
+test_run_case("simple return function",
+"def add(a, b):
+  return a + b
+print(add(1, 2))
+print(add(\"a\", \"b\"))
+print(add(9.9, True))", "3\nab\n10.9\n");
+
+test_run_case(
+"fibonacci",
+"def fib(n):
+  if n < 2:
+    return n
+  return fib(n-1) + fib(n-2)
+print(fib(10))", "55\n");
+
+test_run_case(
+"nested function",
+"def f():
+  def g():
+    print(1)
+  g()
+f()", "1\n");
+
+test_run_case(
+"nested function, with closure environment and return function",
+"def f():
+  i=0
+  def count():
+    i=i+1
+    print(i)
+  return count
+c = f()
+c()
+c()
+c()", "1\n2\n3\n");
+
 
     }
 }

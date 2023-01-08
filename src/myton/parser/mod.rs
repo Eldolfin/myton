@@ -79,9 +79,22 @@ impl Parser {
             self.for_statement()
         } else if self.match_token(vec![TokenKind::Print]) {
             self.print_statement()
+        } else if self.match_token(vec![TokenKind::Return]) {
+            self.return_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn return_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let keyword = self.previous();
+        let value = if self.check(TokenKind::Newline) {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+        self.consume(TokenKind::Newline, "Expect newline after return value.")?;
+        Ok(Box::new(ReturnStatement { keyword, value }))
     }
 
     fn while_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {

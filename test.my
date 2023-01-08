@@ -1,0 +1,3 @@
+def dis_bonjour(prenom, nom):
+  print("Bonjour " + prenom + " " + nom)
+dis_bonjour("John", "Doe")

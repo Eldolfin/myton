@@ -16,6 +16,7 @@ pub enum TypeKind {
     NativeFunction,
 }
 
+#[derive(Debug)]
 pub struct DynValue {
     pub value: Rc<RefCell<Box<dyn Any>>>,
     pub name: Option<String>,

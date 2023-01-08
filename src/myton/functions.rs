@@ -1,5 +1,5 @@
 use super::types::DynValue;
-use super::traceback::Traceback;
+use super::traceback::{Traceback, TracebackKind};
 use super::environment::{Env, make_env_enclosed};
 use super::parser::FunctionStatement;
 
@@ -12,6 +12,7 @@ pub trait Callable {
 
 pub struct Function {
     pub statement: FunctionStatement,
+    pub closure: Env,
 }
 
 pub struct NativeFunction {
@@ -20,23 +21,30 @@ pub struct NativeFunction {
 }
 
 impl Function {
-    pub fn new(statement: FunctionStatement) -> Function {
-        Function {
+    pub fn new(statement: FunctionStatement, closure: Env) -> Self {
+        Self {
             statement,
+            closure,
         }
     }
 }
 
 impl Callable for Function {
-    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
-        let function_env = make_env_enclosed(env.clone());
+    fn call(&self, _: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
+        let function_env = make_env_enclosed(self.closure.clone());
 
         for (param, value) in self.statement.inner.as_ref().borrow().parameters.iter().zip(args) {
             function_env.borrow_mut().set(param.clone(), value);
         }
+        
 
-        self.statement.inner.as_ref().borrow().body.execute(&function_env)?;
-        Ok(DynValue::none())
+        match self.statement.inner.as_ref().borrow().body.execute(&function_env) {
+            Err(Traceback { tipe: TracebackKind::Return, value: Some(value), .. }) => {
+                Ok(value)
+            },
+            Ok(()) => Ok(DynValue::none()),
+            Err(traceback) => Err(traceback),
+        }
     }
 
     fn arity(&self) -> usize {
@@ -58,6 +66,7 @@ impl Clone for Function {
     fn clone(&self) -> Self {
         Function {
             statement: self.statement.clone(),
+            closure: self.closure.clone(),
         }
     }
 }

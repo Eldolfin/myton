@@ -130,6 +130,11 @@ pub struct FunctionStatement {
     pub inner: Rc<RefCell<FunctionStatementInner>>
 }
 
+pub struct ReturnStatement {
+    pub keyword: Token,
+    pub value: Option<Expr>,
+}
+
 pub enum OperatorKind {
     Plus,
     Minus,
@@ -231,7 +236,11 @@ impl Expression for Variable {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         match env.borrow().get(self.token.value.to_string()) {
             Some(value) => Ok(value),
-            None => Err(Traceback{ message: Some(format!("Undefined variable '{}'", self.token.value)), ..Default::default()})
+            None => Err(Traceback { 
+                message: Some(format!("Undefined variable '{}'", self.token.value)),
+                pos: self.token.pos.unwrap(),
+                ..Default::default()
+            })
         }
     }
 }
@@ -440,7 +449,7 @@ impl Statement for FunctionStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let name = self.inner.borrow().name.clone();
 
-        let function = DynValue::from_function(Function::new(self.clone()), name.clone());
+        let function = DynValue::from_function(Function::new(self.clone(), env.clone()), name.clone());
 
         env.borrow_mut().set(name, function);
 
@@ -500,5 +509,17 @@ impl Call {
             paren,
             arguments,
         }
+    }
+}
+
+impl Statement for ReturnStatement {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
+        Err(Traceback::from_return_value(
+            if let Some(expr) = &self.value {
+                expr.eval(env)?
+            } else {
+                DynValue::none()
+            }
+        ))
     }
 }
