@@ -1,8 +1,11 @@
 use crate::myton::environment::Env;
+use crate::myton::types::Function;
 
 use super::super::token::{Token, TokenKind};
 use super::super::types::{TypeKind, DynValue};
 use super::super::traceback::Traceback;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub trait Expression {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
@@ -85,10 +88,14 @@ pub struct BlockStatement {
     pub statements: Vec<Box<dyn Statement>>,
 }
 
-pub struct FunctionStatement {
+pub struct FunctionStatementInner {
     pub name: String,
     pub parameters: Vec<String>,
     pub body: Box<dyn Statement>,
+}
+
+pub struct FunctionStatement {
+    pub inner: Rc<RefCell<FunctionStatementInner>>
 }
 
 pub enum OperatorKind {
@@ -395,6 +402,38 @@ impl Statement for ForeachStatement {
             Err(Traceback {
                 message: Some(format!("'{}' object is not iterable", list.tipe)),
                 ..Default::default()})
+        }
+    }
+}
+
+impl Statement for FunctionStatement {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
+        let name = self.inner.borrow().name.clone();
+
+        let function = DynValue::from_function(Function::new(self.clone()), name.clone());
+
+        env.borrow_mut().set(name, function);
+
+        Ok(String::new())
+    }
+}
+
+impl FunctionStatement {
+    pub fn new(name: String, parameters: Vec<String>, body: Box<dyn Statement>) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(FunctionStatementInner {
+                name,
+                parameters,
+                body,
+            })),
+        }
+    }
+}
+
+impl Clone for FunctionStatement {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
         }
     }
 }

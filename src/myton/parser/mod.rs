@@ -33,11 +33,29 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Box<dyn Statement>, Traceback> {
-        if self.match_token(vec![TokenKind::Identifier]) {
+        if self.match_token(vec![TokenKind::Def]) {
+            self.function()
+        } else if self.match_token(vec![TokenKind::Identifier]) {
             self.var_declaration()
         } else {
             self.statement()
         }
+    }
+
+    fn function(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        let name = self.consume(TokenKind::Identifier, "Expect function name.")?.value;
+        self.consume(TokenKind::LeftParen, "Expect '(' after function name.")?;
+        let mut parameters = Vec::new();
+        if !self.check(TokenKind::RightParen) {
+            while {
+                parameters.push(self.consume(TokenKind::Identifier, "Expect parameter name.")?.value);
+                self.match_token(vec![TokenKind::Comma])
+            } {}
+        }
+        self.consume(TokenKind::RightParen, "Expect ')' after parameters.")?;
+        self.consume(TokenKind::Colon, "Expect ':' before function body.")?;
+        let body = self.block_statement()?;
+        Ok(Box::new(FunctionStatement::new(name, parameters, body)))
     }
 
     fn var_declaration(&mut self) -> Result<Box<dyn Statement>, Traceback> {

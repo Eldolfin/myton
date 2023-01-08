@@ -1,3 +1,5 @@
+
+
 #[derive(Debug, Clone)]
 pub struct Traceback {
     pub pos: (usize, usize),
@@ -15,6 +17,15 @@ impl Default for Traceback {
             filename: None,
             function_name: None,
             code: None,
+        }
+    }
+}
+
+impl Traceback {
+    pub fn from_message(message: &str) -> Self {
+        Self {
+            message: Some(message.to_string()),
+            ..Default::default()
         }
     }
 }

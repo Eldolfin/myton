@@ -5,6 +5,7 @@ mod types;
 mod traceback;
 mod repl;
 mod environment;
+mod native_functions;
 
 pub use errors::had_error;
 
@@ -15,17 +16,21 @@ use traceback::Traceback;
 use repl::Repl;
 use environment::{Env,make_env};
 use std::io::prelude::*;
+use native_functions::add_native_functions;
 
 pub struct Interpreter {
     environment: Env,
 }
 
-const DEBUG_LEXER: bool = false;
+const DEBUG_LEXER: bool = true;
 
 impl Interpreter {
     pub fn new() -> Interpreter {
+        let env = make_env();
+        add_native_functions(&env);
+
         Interpreter {
-            environment: make_env()
+            environment: env,
         }
     }
 

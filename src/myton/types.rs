@@ -1,6 +1,7 @@
 use super::token::{Token, TokenKind};
 use super::parser::FunctionStatement;
 use super::environment::{Env, make_env_enclosed};
+use super::traceback::Traceback;
 use std::any::Any;
 use std::fmt::{Formatter, Display, Result as FmtResult};
 use std::rc::Rc;
@@ -24,18 +25,52 @@ pub struct DynValue {
 }
 
 trait Callable {
-    fn call(&self, env: &Env, args: Vec<DynValue>) -> DynValue;
+    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback>;
+
+    fn arity(&self) -> usize;
 }
 
-struct Function {
-    statement: FunctionStatement,
+pub struct Function {
+    pub statement: FunctionStatement,
+}
+
+pub struct NativeFunction {
+    pub func: fn(&Env, Vec<DynValue>) -> Result<DynValue, Traceback>,
+    pub nb_args: usize,
 }
 
 impl Callable for Function {
-    fn call(&self, env: &Env, args: Vec<DynValue>) -> DynValue {
+    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
         let function_env = make_env_enclosed(env.clone());
-        self.statement.body.execute(&function_env);
-        DynValue::none()
+
+        for (param, value) in self.statement.inner.as_ref().borrow().parameters.iter().zip(args) {
+            function_env.borrow_mut().set(param.clone(), value);
+        }
+
+        self.statement.inner.as_ref().borrow().body.execute(&function_env)?;
+        Ok(DynValue::none())
+    }
+
+    fn arity(&self) -> usize {
+        self.statement.inner.as_ref().borrow().parameters.len()
+    }
+}
+
+impl Callable for NativeFunction {
+    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
+        (self.func)(env, args)
+    }
+
+    fn arity(&self) -> usize {
+        self.nb_args
+    }
+}
+
+impl Function {
+    pub fn new(statement: FunctionStatement) -> Function {
+        Function {
+            statement,
+        }
     }
 }
 
@@ -164,6 +199,14 @@ impl DynValue {
 
     pub fn from_vec(value: Vec<DynValue>) -> Self {
         Self::new(Box::new(value), TypeKind::List)
+    }
+
+    pub fn from_function(value: Function, name: String) -> Self {
+        Self::new_with_name(Box::new(value), TypeKind::Function, name)
+    }
+
+    pub fn from_native_function(value: NativeFunction, name: String) -> Self {
+        Self::new_with_name(Box::new(value), TypeKind::NativeFunction, name)
     }
 
     pub fn none() -> Self {
