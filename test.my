@@ -4,7 +4,6 @@ def main():
   print("global=",global)
   inner=3
   print("inner=",inner)
-
 print("global=",global)
 main()
 print("global=",global)

@@ -1,5 +1,3 @@
-
-
 #[derive(Debug, Clone)]
 pub struct Traceback {
     pub pos: (usize, usize),
@@ -12,7 +10,7 @@ pub struct Traceback {
 impl Default for Traceback {
     fn default() -> Self {
         Self {
-            pos: (0, 1),
+            pos: (0, 0),
             message: None,
             filename: None,
             function_name: None,

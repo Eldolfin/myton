@@ -6,6 +6,7 @@ mod traceback;
 mod repl;
 mod environment;
 mod native_functions;
+mod functions;
 
 pub use errors::had_error;
 
@@ -84,7 +85,7 @@ impl Interpreter {
             Ok(value) => Ok(value.to_string()),
             Err(traceback) => {
                 let mut traceback = traceback.clone();
-                traceback.code = Some(source.lines().nth(traceback.pos.1-1).unwrap().to_string());
+                traceback.code = Some(source.lines().nth(traceback.pos.1).unwrap().to_string());
                 Err(report_trace(traceback))
             },
         }

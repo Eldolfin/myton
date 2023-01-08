@@ -20,7 +20,7 @@ impl Lexer {
     pub fn new(input: String) -> Lexer {
         let lexer = Lexer{
             input,
-            position: (0, 1),
+            position: (0, 0),
             idx: 0,
             ignored_tokens: vec![TokenKind::Space, TokenKind::Comment, TokenKind::Indent],
             regexs: TokenKind::iter().map(|kind| {Regex::new(format!(r"^{}", kind.regex()).as_str()).unwrap()}).collect(),

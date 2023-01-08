@@ -1,13 +1,11 @@
 use super::token::{Token, TokenKind};
-use super::parser::FunctionStatement;
-use super::environment::{Env, make_env_enclosed};
-use super::traceback::Traceback;
+use super::functions::{NativeFunction, Function, Callable};
 use std::any::Any;
 use std::fmt::{Formatter, Display, Result as FmtResult};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeKind {
     Number,
     Stringue,
@@ -22,56 +20,6 @@ pub struct DynValue {
     pub value: Rc<RefCell<Box<dyn Any>>>,
     pub name: Option<String>,
     pub tipe: TypeKind,
-}
-
-trait Callable {
-    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback>;
-
-    fn arity(&self) -> usize;
-}
-
-pub struct Function {
-    pub statement: FunctionStatement,
-}
-
-pub struct NativeFunction {
-    pub func: fn(&Env, Vec<DynValue>) -> Result<DynValue, Traceback>,
-    pub nb_args: usize,
-}
-
-impl Callable for Function {
-    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
-        let function_env = make_env_enclosed(env.clone());
-
-        for (param, value) in self.statement.inner.as_ref().borrow().parameters.iter().zip(args) {
-            function_env.borrow_mut().set(param.clone(), value);
-        }
-
-        self.statement.inner.as_ref().borrow().body.execute(&function_env)?;
-        Ok(DynValue::none())
-    }
-
-    fn arity(&self) -> usize {
-        self.statement.inner.as_ref().borrow().parameters.len()
-    }
-}
-
-impl Callable for NativeFunction {
-    fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
-        (self.func)(env, args)
-    }
-
-    fn arity(&self) -> usize {
-        self.nb_args
-    }
-}
-
-impl Function {
-    pub fn new(statement: FunctionStatement) -> Function {
-        Function {
-            statement,
-        }
-    }
 }
 
 impl TypeKind {
@@ -251,6 +199,14 @@ impl DynValue {
             Some(self.value.borrow().downcast_ref::<Vec<DynValue>>().unwrap().clone())
         } else {
             None
+        }
+    }
+
+    pub fn as_callable(&self) -> Option<Box<dyn Callable>> {
+        match self.tipe {
+            TypeKind::Function => Some(Box::new(self.value.borrow().downcast_ref::<Function>().unwrap().clone())),
+            TypeKind::NativeFunction => Some(Box::new(self.value.borrow().downcast_ref::<NativeFunction>().unwrap().clone())),
+            _ => None,
         }
     }
 

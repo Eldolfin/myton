@@ -1,6 +1,7 @@
 use super::types;
 use super::environment::Env;
-use super::types::{DynValue, NativeFunction};
+use super::types::{DynValue};
+use super::functions::NativeFunction;
 use super::traceback::Traceback;
 
 pub fn add_native_functions(env: &Env) {

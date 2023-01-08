@@ -1,6 +1,5 @@
 use crate::myton::environment::Env;
-use crate::myton::types::Function;
-
+use super::super::functions::*;
 use super::super::token::{Token, TokenKind};
 use super::super::types::{TypeKind, DynValue};
 use super::super::traceback::Traceback;
