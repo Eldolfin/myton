@@ -14,7 +14,6 @@ pub trait Statement {
     fn execute(&self, env: &Env) -> Result<(), Traceback>;
 }
 
-pub type StmtTrait = Box<dyn Statement>;
 pub type STMT = Box<dyn Statement>;
 
 pub struct ExpressionStatement {
@@ -189,4 +188,3 @@ impl Clone for FunctionStatement {
         }
     }
 }
-
