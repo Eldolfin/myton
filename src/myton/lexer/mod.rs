@@ -124,13 +124,6 @@ impl Lexer {
 
         return Some(Token {kind, value, ..Default::default()});
     }
-
-    fn prev(&self) -> Option<Token> {
-        if self.tokens.len() == 0 {
-            return None;
-        }
-        return Some(self.tokens[self.tokens.len()-1].clone());
-    }
 }
 
 #[cfg(test)]

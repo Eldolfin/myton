@@ -2,7 +2,6 @@ mod ast;
 
 use super::token::{TokenKind, Token};
 use super::traceback::Traceback;
-use super::types::DynValue;
 use ast::*;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult {
@@ -304,6 +303,7 @@ impl Parser {
         })
     }
 
+    #[allow(dead_code)] // #TODO: remove this
     fn synchronize(&mut self) {
         self.advance();
         while !self.is_at_end() {

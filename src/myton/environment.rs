@@ -1,31 +1,35 @@
 use std::collections::HashMap;
 use super::types::DynValue;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+type Env = Rc<RefCell<Environment>>;
 
 pub struct Environment {
-    enclosing: Option<Box<Environment>>,
+    enclosing: Option<Env>,
     values: HashMap<String, DynValue>,
 }
 
 impl Environment {
-    pub fn new() -> Environment {
+    pub fn new() -> Self {
         Environment {
             values: HashMap::new(),
             enclosing: None,
         }
     }
 
-    pub fn new_enclosed(enclosing: Environment) -> Environment {
+    pub fn new_enclosed(enclosing: Env) -> Self {
         Environment {
             values: HashMap::new(),
-            enclosing: Some(Box::new(enclosing)),
+            enclosing: Some(enclosing),
         }
     }
 
-    pub fn get(&mut self, name: &str) -> Option<DynValue> {
+    pub fn get(&self, name: &str) -> Option<DynValue> {
         if let Some(value) = self.values.get(name) {
             Some(value.clone())
-        } else if let Some(enclosing) = &mut self.enclosing {
-            enclosing.get(name)
+        } else if let Some(enclosing) = &self.enclosing {
+            enclosing.borrow().get(name)
         } else {
             None
         }

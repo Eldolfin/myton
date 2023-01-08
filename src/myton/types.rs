@@ -185,10 +185,6 @@ impl DynValue {
         self.tipe == TypeKind::Number || self.tipe == TypeKind::Boolean || 
         (self.tipe == TypeKind::Stringue && self.as_string().parse::<f64>().is_ok())
     }
-
-    pub fn is_string(&self) -> bool {
-        self.tipe == TypeKind::Stringue
-    }
 }
 
 #[cfg(test)]
