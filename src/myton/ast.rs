@@ -1,10 +1,10 @@
 use crate::myton::MyWrite;
 
-use super::super::environment::{Env, EnvVariable};
-use super::super::functions::*;
-use super::super::token::{Token, TokenKind};
-use super::super::types::{TypeKind, DynValue};
-use super::super::traceback::Traceback;
+use super::environment::{Env, EnvVariable};
+use super::functions::*;
+use super::token::{Token, TokenKind};
+use super::types::{TypeKind, DynValue};
+use super::traceback::Traceback;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::io::Write;
@@ -18,27 +18,7 @@ pub trait Statement {
 }
 
 pub type Expr = Box<dyn Expression>;
-pub type Stmt = Box<dyn Statement>;
-//
-// enum Expressions {
-//     Binary(Binary),
-//     Unary(Unary),
-//     Literal(Literal),
-//     Grouping(Grouping),
-//     Variable(Variable),
-//     Logical(Logical),
-//     Call(Call),
-// }
-//
-// enum Statements {
-//     Expression(ExpressionStatement),
-//     Print(PrintStatement),
-//     Var(VarStatement),
-//     Block(BlockStatement),
-//     If(IfStatement),
-//     While(WhileStatement),
-//     Function(FunctionStatement),
-// }
+pub type StmtTrait = Box<dyn Statement>;
 
 pub struct Operator {
     token: Token,
@@ -90,19 +70,19 @@ pub struct ExpressionStatement {
 
 pub struct IfStatement {
     pub condition: Expr,
-    pub then_branch: Stmt,
-    pub else_branch: Option<Stmt>,
+    pub then_branch: StmtTrait,
+    pub else_branch: Option<StmtTrait>,
 }
 
 pub struct WhileStatement {
     pub condition: Expr,
-    pub body: Stmt,
+    pub body: StmtTrait,
 }
 
 pub struct ForeachStatement {
     pub variable: String,
     pub collection: Expr,
-    pub body: Stmt,
+    pub body: StmtTrait,
 }
 
 
@@ -117,13 +97,13 @@ pub struct VarStatement {
 }
 
 pub struct BlockStatement {
-    pub statements: Vec<Stmt>,
+    pub statements: Vec<StmtTrait>,
 }
 
 pub struct FunctionStatementInner {
     pub name: String,
     pub parameters: Vec<String>,
-    pub body: Stmt,
+    pub body: StmtTrait,
 }
 
 pub struct FunctionStatement {
@@ -458,7 +438,7 @@ impl Statement for FunctionStatement {
 }
 
 impl FunctionStatement {
-    pub fn new(name: String, parameters: Vec<String>, body: Stmt) -> Self {
+    pub fn new(name: String, parameters: Vec<String>, body: StmtTrait) -> Self {
         Self {
             inner: Rc::new(RefCell::new(FunctionStatementInner {
                 name,

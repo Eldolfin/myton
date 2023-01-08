@@ -1,10 +1,8 @@
-mod ast;
-
 use super::token::{TokenKind, Token};
 use super::traceback::Traceback;
 use std::rc::Rc;
 use std::cell::RefCell;
-pub use ast::*;
+use super::ast::*;
 use super::MyWrite;
 
 pub struct Parser {

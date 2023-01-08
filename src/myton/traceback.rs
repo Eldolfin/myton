@@ -1,4 +1,5 @@
 use super::types::DynValue;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct Traceback {
@@ -47,4 +48,13 @@ pub enum TracebackKind {
     Error,
     // Tracebacks are also a way to return values from functions
     Return,
+}
+
+impl Display for TracebackKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TracebackKind::Error => write!(f, "error"),
+            TracebackKind::Return => write!(f, "return"),
+        }
+    }
 }

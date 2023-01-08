@@ -7,6 +7,8 @@ mod repl;
 mod environment;
 mod native_functions;
 mod functions;
+mod resolver;
+mod ast;
 
 pub use errors::had_error;
 
@@ -89,8 +91,7 @@ impl Interpreter {
 
     fn run(&mut self, source: String) -> Result<(), String> {
         if let Err(mut traceback) = self.run_with_traceback(source.clone()){
-            traceback.code = Some(source.lines().nth(traceback.pos.1)
-                .unwrap_or(format!("Could not find line {} in source", traceback.pos.1).as_str()).to_string());
+            traceback.code = Some(source);
             Err(report_trace(traceback))
         } else {
             Ok(())
@@ -236,6 +237,17 @@ c = f()
 c()
 c()
 c()", "1\n2\n3\n");
+
+test_run_case(
+"broken closure code",
+"a=\"global\"
+def f():
+  def print_A():
+    print(a)
+  print_A()
+  a=\"local\"
+  print_A()
+f()", "global\nglobal\n");
 
 
     }

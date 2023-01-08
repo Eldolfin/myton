@@ -1,7 +1,7 @@
 use super::types::DynValue;
 use super::traceback::{Traceback, TracebackKind};
 use super::environment::{Env, make_env_enclosed};
-use super::parser::FunctionStatement;
+use super::ast::FunctionStatement;
 
 
 pub trait Callable {

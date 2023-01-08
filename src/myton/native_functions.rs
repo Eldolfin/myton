@@ -1,5 +1,5 @@
 use super::environment::{Env, EnvVariable};
-use super::types::{DynValue};
+use super::types::DynValue;
 use super::functions::NativeFunction;
 use super::traceback::Traceback;
 
