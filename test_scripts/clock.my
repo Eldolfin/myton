@@ -1,0 +1,21 @@
+a="il est "
+b=":"
+c=", et "
+d=" secondes :D \r"
+s=0
+m=0
+h=0
+def il_est_quelle_heure():
+  h=h+1 # décalage horaire
+  print(a+h+b+m+c+s+d)
+def sleep_un_peu():
+  max=100000
+  while max>0:
+    max=max-1
+while True:
+  time=clock()
+  s=time%60
+  m=(time/60)%60
+  h=(time/3600)%24
+  il_est_quelle_heure()
+  sleep_un_peu()

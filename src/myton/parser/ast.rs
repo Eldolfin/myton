@@ -1,3 +1,5 @@
+use crate::myton::MyWrite;
+
 use super::super::environment::{Env, EnvVariable};
 use super::super::functions::*;
 use super::super::token::{Token, TokenKind};
@@ -5,6 +7,7 @@ use super::super::types::{TypeKind, DynValue};
 use super::super::traceback::Traceback;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::io::Write;
 
 pub trait Expression {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
@@ -16,26 +19,26 @@ pub trait Statement {
 
 pub type Expr = Box<dyn Expression>;
 pub type Stmt = Box<dyn Statement>;
-
-enum Expressions {
-    Binary(Binary),
-    Unary(Unary),
-    Literal(Literal),
-    Grouping(Grouping),
-    Variable(Variable),
-    Logical(Logical),
-    Call(Call),
-}
-
-enum Statements {
-    Expression(ExpressionStatement),
-    Print(PrintStatement),
-    Var(VarStatement),
-    Block(BlockStatement),
-    If(IfStatement),
-    While(WhileStatement),
-    Function(FunctionStatement),
-}
+//
+// enum Expressions {
+//     Binary(Binary),
+//     Unary(Unary),
+//     Literal(Literal),
+//     Grouping(Grouping),
+//     Variable(Variable),
+//     Logical(Logical),
+//     Call(Call),
+// }
+//
+// enum Statements {
+//     Expression(ExpressionStatement),
+//     Print(PrintStatement),
+//     Var(VarStatement),
+//     Block(BlockStatement),
+//     If(IfStatement),
+//     While(WhileStatement),
+//     Function(FunctionStatement),
+// }
 
 pub struct Operator {
     token: Token,
@@ -105,6 +108,7 @@ pub struct ForeachStatement {
 
 pub struct PrintStatement {
     pub expression: Expr,
+    pub output: Rc<RefCell<Box<dyn MyWrite>>>,
 }
 
 pub struct VarStatement {
@@ -376,10 +380,13 @@ impl Statement for IfStatement {
 
 impl Statement for PrintStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
-        let value = self.expression.eval(env)?;
-        println!("{}", value.as_string());
-        env.borrow().get_env_var(EnvVariable::NewLines).increment();
-        assert!(env.borrow().get_env_var(EnvVariable::NewLines).as_number() < 0.0);
+        let value = self.expression.eval(env)?.as_string();
+        
+        let line_nb = value.lines().count();
+        env.borrow().get_env_var(EnvVariable::NewLines).increment_by(line_nb as f64);
+        
+        writeln!(self.output.borrow_mut(), "{}", value).unwrap();
+        
         Ok(())
     }
 }
@@ -467,9 +474,20 @@ impl Expression for Call {
         let maybe_callee = self.callee.eval(env)?;
 
         if let Some(callee) = maybe_callee.as_callable() {
+            if args.len() != callee.arity() {
+                return Err(Traceback {
+                    message: Some(format!("Expected {} arguments but got {}", callee.arity(), args.len())),
+                    pos: self.paren.pos.unwrap(),
+                    ..Default::default()
+                });
+            }
             callee.call(env, args)
         } else {
-            Err(Traceback::from_message(format!("'{}' object is not callable", maybe_callee.tipe).as_str()))
+            Err(Traceback{
+                message: Some(format!("'{}' object is not callable", maybe_callee.tipe)),
+                pos: self.paren.pos.unwrap(),
+                ..Default::default()
+            })
         }
     }
 }

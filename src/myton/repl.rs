@@ -33,6 +33,10 @@ impl Repl {
 
     fn update_cursor(&mut self) {
         self.cursor.0 = (self.buffer.cursor + PROMPT.len() + 1) as u16;
+        self.update_cursor_pos();
+    }
+
+    fn update_cursor_pos(&mut self) {
         print!("{}", termion::cursor::Goto(self.cursor.0, self.cursor.1));
         self.flush();
     }
@@ -60,11 +64,11 @@ impl Repl {
     
     fn execute_buffer(&mut self) {
         self.newline();
-        self.update_cursor();
+        self.cursor.0 = 1;
+        self.update_cursor_pos();
         if self.buffer.buffer.len() > 0 {
             self.input_history.push(self.buffer.buffer.clone());
         }
-        self.buffer.clear();
     }
 
     fn prompt(&mut self) {
@@ -83,17 +87,6 @@ impl Repl {
 
     fn flush(&mut self) {
         self.stdout.flush().unwrap();
-    }
-
-    pub fn print_result(&mut self, result: Result<String, String>) {
-        match result {
-            Ok(value) => {
-                self.println(value);
-            },
-            Err(error) => {
-                self.printerr(error);
-            }
-        }
     }
 
     fn print(&mut self, s: String) {

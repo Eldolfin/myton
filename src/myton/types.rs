@@ -219,11 +219,11 @@ impl DynValue {
         (self.tipe == TypeKind::Stringue && self.as_string().parse::<f64>().is_ok())
     }
 
-    pub fn increment(&mut self) {
+    pub fn increment_by(&mut self, incrementation_value: f64) {
         if self.tipe == TypeKind::Number {
             let mut value = self.value.borrow_mut();
             let value = value.downcast_mut::<f64>().unwrap();
-            *value += 1.0;
+            *value += incrementation_value;
         } else {
             panic!("Invalid type for increment {}", self.tipe);
         }

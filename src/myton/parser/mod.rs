@@ -2,29 +2,29 @@ mod ast;
 
 use super::token::{TokenKind, Token};
 use super::traceback::Traceback;
+use std::rc::Rc;
+use std::cell::RefCell;
 pub use ast::*;
+use super::MyWrite;
 
-pub fn parse(tokens: Vec<Token>) -> ParseResult {
-    let mut parser = Parser::new(tokens);
-    parser.parse()
-}
-
-struct Parser {
+pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+    output: Rc<RefCell<Box<dyn MyWrite>>>,
 }
 
 type ParseResult = Result<Vec<Box<dyn Statement>>, Traceback>;
 
 impl Parser {
-    fn new(tokens: Vec<Token>) -> Parser {
+    pub fn new(tokens: Vec<Token>, output: Rc<RefCell<Box<dyn MyWrite>>>) -> Parser {
         Parser {
             tokens,
             current: 0,
+            output,
         }
     }
 
-    fn parse(&mut self) -> ParseResult {
+    pub fn parse(&mut self) -> ParseResult {
         let mut statements = Vec::new();
         while !self.is_at_end() {
             statements.push(self.declaration()?);
@@ -141,7 +141,7 @@ impl Parser {
     fn print_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
         let expression = self.expression()?;
         self.consume(TokenKind::Newline, "Expect newline after expression.")?;
-        Ok(Box::new(PrintStatement { expression }))
+        Ok(Box::new(PrintStatement { expression, output: self.output.clone() }))
     }
 
     fn expression_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
@@ -271,10 +271,12 @@ impl Parser {
         }
         if self.match_token(vec![TokenKind::LeftBracket]) {
             let mut elements = Vec::new();
-            while {
-                elements.push(self.expression()?);
-                self.consume(TokenKind::Comma, "Expect ',' after expression.").is_ok()
-            } {}
+            if !self.check(TokenKind::RightBracket) {
+                while {
+                    elements.push(self.expression()?);
+                    self.match_token(vec![TokenKind::Comma])
+                } {}
+            }
 
             self.consume(TokenKind::RightBracket, "Expect ']' after expression.")?;
             return Ok(Box::new(List{elements}));

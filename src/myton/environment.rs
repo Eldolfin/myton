@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::types::{DynValue, TypeKind};
+use super::types::{DynValue};
 use std::rc::Rc;
 use std::cell::RefCell;
 
