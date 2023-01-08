@@ -8,7 +8,8 @@ mod environment;
 mod native_functions;
 mod functions;
 mod resolver;
-mod ast;
+mod expression;
+mod statement;
 
 pub use errors::had_error;
 

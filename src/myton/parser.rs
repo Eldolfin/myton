@@ -2,7 +2,8 @@ use super::token::{TokenKind, Token};
 use super::traceback::Traceback;
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::ast::*;
+use super::expression::*;
+use super::statement::*;
 use super::MyWrite;
 
 pub struct Parser {
