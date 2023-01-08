@@ -60,12 +60,15 @@ impl Repl {
     
     fn execute_buffer(&mut self) {
         self.newline();
+        self.update_cursor();
         if self.buffer.buffer.len() > 0 {
             self.input_history.push(self.buffer.buffer.clone());
         }
+        self.buffer.clear();
     }
 
     fn prompt(&mut self) {
+        self.cursor.0 = 1;
         self.print(PROMPT.to_string());
     }
 
@@ -111,15 +114,19 @@ impl Repl {
         self.println(s);
         print!("{}", termion::color::Fg(termion::color::Reset));
     }
-
+    
+    pub fn skiplines(&mut self, n: u16) {
+        self.cursor.1 = (self.cursor.1 + n) % self.term_size.1;
+        self.update_cursor();
+    }
 }
 
 impl Iterator for Repl {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.prompt();
         self.buffer.clear();
+        self.prompt();
         for c in stdin().keys() {
             match c.unwrap() {
                 Key::Up => {

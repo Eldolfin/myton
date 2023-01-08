@@ -1,10 +1,10 @@
 use super::types;
-use super::environment::Env;
+use super::environment::{Env, EnvVariable};
 use super::types::{DynValue};
 use super::functions::NativeFunction;
 use super::traceback::Traceback;
 
-pub fn add_native_functions(env: &Env) {
+pub fn define_globals(env: &Env) {
     let mut env = env.borrow_mut();
     let native_functions :Vec<(&str, NativeFunction)> = vec![
         ("clock",
@@ -17,6 +17,8 @@ pub fn add_native_functions(env: &Env) {
     for (name, func) in native_functions {
         env.set(name.to_string(), DynValue::from_native_function(func, name.to_string()));
     }
+
+    env.set_env_var(EnvVariable::NewLines, DynValue::from(0));
 }
 
 pub fn native_clock(_: &Env, _: Vec<DynValue>) -> Result<DynValue, Traceback> {

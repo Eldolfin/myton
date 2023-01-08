@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::types::DynValue;
+use super::types::{DynValue, TypeKind};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -25,8 +25,8 @@ impl Environment {
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<DynValue> {
-        if let Some(value) = self.values.get(name) {
+    pub fn get(&self, name: String) -> Option<DynValue> {
+        if let Some(value) = self.values.get(&name) {
             Some(value.clone())
         } else if let Some(enclosing) = &self.enclosing {
             enclosing.borrow().get(name)
@@ -38,6 +38,27 @@ impl Environment {
     pub fn set(&mut self, name: String, value: DynValue) {
         self.values.insert(name, value);
     }
+
+    pub fn set_global(&mut self, name: String, value: DynValue) {
+        if let Some(enclosing) = &self.enclosing {
+            enclosing.borrow_mut().set_global(name, value);
+        } else {
+            self.set(name, value);
+        }
+    }
+
+    pub fn get_env_var(&self, var: EnvVariable) -> DynValue {
+        let name = var.get_name();
+        
+        self.get(name.to_string()).unwrap_or_else(|| {
+            panic!("Undefined environment variable variable '{}'", name.to_string());
+        })
+    }
+
+    pub fn set_env_var(&mut self, var: EnvVariable, value: DynValue) {
+        let name = var.get_name();
+        self.set_global(name, value);
+    }
 }
 
 pub fn make_env() -> Env {
@@ -48,6 +69,17 @@ pub fn make_env_enclosed(enclosing: Env) -> Env {
     Rc::new(RefCell::new(Environment::new_enclosed(enclosing)))
 }
 
+pub enum EnvVariable {
+    NewLines,
+}
+
+impl EnvVariable {
+    fn get_name(&self) -> String {
+        match self {
+            EnvVariable::NewLines => String::from(".new_lines"),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -59,11 +91,11 @@ mod tests {
     #[test]
     fn test_get() {
         let mut env = Environment::new();
-        env.set("a".to_string(), DynValue::from(1.0));
-        assert!(env.get("a").is_some());
-        assert!(env.get("a").unwrap().is_number());
-        assert_eq!(env.get("a").unwrap().as_number(), 1.0);
-        assert!(env.get("b").is_none());
+        env.set("a".to_string().to_string(), DynValue::from(1.0));
+        assert!(env.get("a".to_string()).is_some());
+        assert!(env.get("a".to_string()).unwrap().is_number());
+        assert_eq!(env.get("a".to_string()).unwrap().as_number(), 1.0);
+        assert!(env.get("b".to_string()).is_none());
     }
 
     #[test]
@@ -72,7 +104,7 @@ mod tests {
         let env = make_env();
         env.borrow_mut().set("clock".to_string(), value);
 
-        let value = env.borrow().get("clock");
+        let value = env.borrow().get("clock".to_string());
 
         assert!(value.is_some());
 
@@ -99,23 +131,40 @@ mod tests {
         borrowed_local.set("b".to_string(), DynValue::from(2.0));
         borrowed_local.set("a".to_string(), DynValue::from(3.0));
 
-        assert!(borrowed_local.get("a").is_some());
-        assert!(borrowed_local.get("a").unwrap().is_number());
-        assert_eq!(borrowed_local.get("a").unwrap().as_number(), 3.0);
+        assert!(borrowed_local.get("a".to_string()).is_some());
+        assert!(borrowed_local.get("a".to_string()).unwrap().is_number());
+        assert_eq!(borrowed_local.get("a".to_string()).unwrap().as_number(), 3.0);
 
-        assert!(borrowed_local.get("b").is_some());
-        assert!(borrowed_local.get("b").unwrap().is_number());
-        assert_eq!(borrowed_local.get("b").unwrap().as_number(), 2.0);
+        assert!(borrowed_local.get("b".to_string()).is_some());
+        assert!(borrowed_local.get("b".to_string()).unwrap().is_number());
+        assert_eq!(borrowed_local.get("b".to_string()).unwrap().as_number(), 2.0);
 
-        assert!(borrowed_local.get("c").is_some());
-        assert!(borrowed_local.get("c").unwrap().is_number());
-        assert_eq!(borrowed_local.get("c").unwrap().as_number(), 2.0);
+        assert!(borrowed_local.get("c".to_string()).is_some());
+        assert!(borrowed_local.get("c".to_string()).unwrap().is_number());
+        assert_eq!(borrowed_local.get("c".to_string()).unwrap().as_number(), 2.0);
 
-        assert!(borrowed_local.get("d").is_none());
+        assert!(borrowed_local.get("d".to_string()).is_none());
 
-        let mut borrowed_global = global.borrow_mut();
-        assert!(borrowed_global.get("a").is_some());
-        assert!(borrowed_global.get("a").unwrap().is_number());
-        assert_eq!(borrowed_global.get("a").unwrap().as_number(), 1.0);
+        let borrowed_global = global.borrow();
+        assert!(borrowed_global.get("a".to_string()).is_some());
+        assert!(borrowed_global.get("a".to_string()).unwrap().is_number());
+        assert_eq!(borrowed_global.get("a".to_string()).unwrap().as_number(), 1.0);
+    }
+
+    #[test]
+    fn test_env_var() {
+        let env = make_env();
+
+        env.borrow_mut().set_env_var(EnvVariable::NewLines, DynValue::from(1.0));
+
+        assert_eq!(env.borrow().get_env_var(EnvVariable::NewLines).as_number(), 1.0);
+
+        let enclosed_env = make_env_enclosed(env.clone());
+        let mut borrowed_enclosed_env = enclosed_env.borrow_mut();
+
+        assert!(borrowed_enclosed_env.get_env_var(EnvVariable::NewLines).as_number() == 1.0);
+        borrowed_enclosed_env.set_env_var(EnvVariable::NewLines, DynValue::from(2.0));
+
+        assert!(env.borrow().get_env_var(EnvVariable::NewLines).as_number() == 2.0);
     }
 }

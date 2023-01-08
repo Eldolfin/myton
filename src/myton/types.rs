@@ -218,6 +218,16 @@ impl DynValue {
         self.tipe == TypeKind::Number || self.tipe == TypeKind::Boolean || 
         (self.tipe == TypeKind::Stringue && self.as_string().parse::<f64>().is_ok())
     }
+
+    pub fn increment(&mut self) {
+        if self.tipe == TypeKind::Number {
+            let mut value = self.value.borrow_mut();
+            let value = value.downcast_mut::<f64>().unwrap();
+            *value += 1.0;
+        } else {
+            panic!("Invalid type for increment {}", self.tipe);
+        }
+    }
 }
 
 impl From<f64> for DynValue {
@@ -247,6 +257,12 @@ impl From<Vec<DynValue>> for DynValue {
 impl From<Token> for DynValue {
     fn from(token: Token) -> Self {
         Self::from_token(&token)
+    }
+}
+
+impl From<i32> for DynValue {
+    fn from(value: i32) -> Self {
+        Self::from_f64(value as f64)
     }
 }
 

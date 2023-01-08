@@ -35,7 +35,7 @@ impl Parser {
     fn declaration(&mut self) -> Result<Box<dyn Statement>, Traceback> {
         if self.match_token(vec![TokenKind::Def]) {
             self.function()
-        } else if self.match_token(vec![TokenKind::Identifier]) {
+        } else if self.check_sequence(vec![TokenKind::Identifier, TokenKind::Equal]) {
             self.var_declaration()
         } else {
             self.statement()
@@ -59,13 +59,9 @@ impl Parser {
     }
 
     fn var_declaration(&mut self) -> Result<Box<dyn Statement>, Traceback> {
-        let name = self.previous().value;
-
-        let mut initializer = None;
-
-        if self.match_token(vec![TokenKind::Equal]) {
-            initializer = Some(self.expression()?);
-        }
+        let name = self.consume(TokenKind::Identifier, "Expect variable name.")?.value;
+        self.consume(TokenKind::Equal, "Expect '=' after variable name.")?;
+        let initializer = self.expression()?;
 
         self.consume(TokenKind::Newline, "Expect newline after variable declaration.")?;
         Ok(Box::new(VarStatement {
@@ -91,7 +87,6 @@ impl Parser {
     fn while_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
         let condition = self.expression()?;
         self.consume(TokenKind::Colon, "Expect ':' after while condition.")?;
-        self.consume(TokenKind::Newline, "Expect newline after while condition.")?;
         let body = self.block_statement()?;
 
         Ok(Box::new(WhileStatement {
@@ -105,7 +100,6 @@ impl Parser {
         self.consume(TokenKind::In, "Expect 'in' after variable name.")?;
         let collection = self.expression()?;
         self.consume(TokenKind::Colon, "Expect ':' after for collection.")?;
-        self.consume(TokenKind::Newline, "Expect newline after for collection.")?;
         let body = self.block_statement()?;
 
         Ok(Box::new(ForeachStatement {
@@ -118,12 +112,10 @@ impl Parser {
     fn if_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
         let condition = self.expression()?;
         self.consume(TokenKind::Colon, "Expect ':' after if condition.")?;
-        self.consume(TokenKind::Newline, "Expect newline after if condition.")?;
         let then_branch = self.block_statement()?;
 
         let else_branch = if self.match_token(vec![TokenKind::Else]) {
             self.consume(TokenKind::Colon, "Expect ':' after else.")?;
-            self.consume(TokenKind::Newline, "Expect newline after else.")?;
             Some(self.block_statement()?)
         } else { None };
 
@@ -135,6 +127,7 @@ impl Parser {
     }
 
     fn block_statement(&mut self) -> Result<Box<dyn Statement>, Traceback> {
+        self.consume(TokenKind::Newline, "Expect newline before code block")?;
         let indent_level = self.previous().indent;
         let mut statements = Vec::new();
         while !self.is_at_end() && self.peek().indent > indent_level {
@@ -196,50 +189,6 @@ impl Parser {
         Ok(expr)
     }
 
-    fn match_token(&mut self, token_types: Vec<TokenKind>) -> bool {
-        for token_type in token_types {
-            if self.check(token_type) {
-                self.advance();
-                return true;
-            }
-        }
-        false
-    }
-
-    fn check(&self, token_type: TokenKind) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-        self.peektype() == token_type
-    }
-
-    fn advance(&mut self) -> Token {
-        if !self.is_at_end() {
-            self.current += 1;
-        }
-        self.previous()
-    }
-
-    fn is_at_end(&self) -> bool {
-        self.peektype() == TokenKind::Eof
-    }
-
-    fn peektype(&self) -> TokenKind {
-        self.tokens[self.current].kind.clone()
-    }
-
-    fn peek(&self) -> Token {
-        self.tokens[self.current].clone()
-    }
-
-    fn previous(&self) -> Token {
-        if self.current == 0 {
-            self.tokens[0].clone()
-        } else {
-            self.tokens[self.current - 1].clone()
-        }
-    }
-
     fn comparison(&mut self) -> Result<Box<dyn Expression>, Traceback> {
         let mut expr = self.term()?;
         while self.match_token(vec![TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) {
@@ -276,7 +225,31 @@ impl Parser {
             let right = self.unary()?;
             return Ok(Box::new(Unary::new(operator, right)));
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr, Traceback> {
+        let mut expr = self.primary()?;
+        loop {
+            if self.match_token(vec![TokenKind::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, Traceback> {
+        let mut arguments = Vec::new();
+        if !self.check(TokenKind::RightParen) {
+            while {
+                arguments.push(self.expression()?);
+                self.match_token(vec![TokenKind::Comma])
+            } {}
+        }
+        let paren = self.consume(TokenKind::RightParen, "Expect ')' after arguments.")?;
+        Ok(Box::new(Call::new(callee, paren, arguments)))
     }
 
     fn primary(&mut self) -> Result<Box<dyn Expression>, Traceback> {
@@ -309,6 +282,59 @@ impl Parser {
 
         Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})
     }
+
+
+    fn match_token(&mut self, token_types: Vec<TokenKind>) -> bool {
+        for token_type in token_types {
+            if self.check(token_type) {
+                self.advance();
+                return true;
+            }
+        }
+        false
+    }
+
+    fn check(&self, token_type: TokenKind) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        self.peektype() == token_type
+    }
+
+    fn check_sequence(&self, token_types: Vec<TokenKind>) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        token_types.iter().zip(self.tokens.iter().skip(self.current)).all(|(a, b)| a == &b.kind)
+    }
+
+    fn advance(&mut self) -> Token {
+        if !self.is_at_end() {
+            self.current += 1;
+        }
+        self.previous()
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.peektype() == TokenKind::Eof
+    }
+
+    fn peektype(&self) -> TokenKind {
+        self.tokens[self.current].kind.clone()
+    }
+
+    fn peek(&self) -> Token {
+        self.tokens[self.current].clone()
+    }
+
+    fn previous(&self) -> Token {
+        if self.current == 0 {
+            self.tokens[0].clone()
+        } else {
+            self.tokens[self.current - 1].clone()
+        }
+    }
+
 
     fn consume(&mut self, token_type: TokenKind, message: &str) -> Result<Token, Traceback> {
         if self.check(token_type) {

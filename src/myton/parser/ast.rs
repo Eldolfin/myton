@@ -1,4 +1,4 @@
-use crate::myton::environment::Env;
+use super::super::environment::{Env, EnvVariable};
 use super::super::functions::*;
 use super::super::token::{Token, TokenKind};
 use super::super::types::{TypeKind, DynValue};
@@ -11,7 +11,30 @@ pub trait Expression {
 }
 
 pub trait Statement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback>;
+    fn execute(&self, env: &Env) -> Result<(), Traceback>;
+}
+
+pub type Expr = Box<dyn Expression>;
+pub type Stmt = Box<dyn Statement>;
+
+enum Expressions {
+    Binary(Binary),
+    Unary(Unary),
+    Literal(Literal),
+    Grouping(Grouping),
+    Variable(Variable),
+    Logical(Logical),
+    Call(Call),
+}
+
+enum Statements {
+    Expression(ExpressionStatement),
+    Print(PrintStatement),
+    Var(VarStatement),
+    Block(BlockStatement),
+    If(IfStatement),
+    While(WhileStatement),
+    Function(FunctionStatement),
 }
 
 pub struct Operator {
@@ -24,7 +47,7 @@ pub struct Literal {
 }
 
 pub struct List {
-    pub elements: Vec<Box<dyn Expression>>,
+    pub elements: Vec<Expr>,
 }
 
 pub struct Variable {
@@ -32,65 +55,71 @@ pub struct Variable {
 }
 
 pub struct Binary {
-    left: Box<dyn Expression>,
+    left: Expr,
     operator: Operator,
-    right: Box<dyn Expression>,
+    right: Expr,
 }
 
 pub struct Logical {
-    left: Box<dyn Expression>,
+    left: Expr,
     kind: LogicalKind,
-    right: Box<dyn Expression>,
+    right: Expr,
 }
 
 pub struct Unary {
     operator: Operator,
-    right: Box<dyn Expression>,
+    right: Expr,
+}
+
+pub struct Call {
+    pub callee: Expr,
+    paren: Token,
+    arguments: Vec<Expr>,
 }
 
 pub struct Grouping {
-    pub expression: Box<dyn Expression>,
+    pub expression: Expr,
 }
 
 pub struct ExpressionStatement {
-    pub expression: Box<dyn Expression>,
+    pub expression: Expr,
 }
 
 pub struct IfStatement {
-    pub condition: Box<dyn Expression>,
-    pub then_branch: Box<dyn Statement>,
-    pub else_branch: Option<Box<dyn Statement>>,
+    pub condition: Expr,
+    pub then_branch: Stmt,
+    pub else_branch: Option<Stmt>,
 }
 
 pub struct WhileStatement {
-    pub condition: Box<dyn Expression>,
-    pub body: Box<dyn Statement>,
+    pub condition: Expr,
+    pub body: Stmt,
 }
 
 pub struct ForeachStatement {
     pub variable: String,
-    pub collection: Box<dyn Expression>,
-    pub body: Box<dyn Statement>,
+    pub collection: Expr,
+    pub body: Stmt,
 }
 
 
 pub struct PrintStatement {
-    pub expression: Box<dyn Expression>,
+    pub expression: Expr,
 }
 
 pub struct VarStatement {
     pub name: String,
-    pub initializer: Option<Box<dyn Expression>>,
+    pub initializer: Expr,
 }
 
 pub struct BlockStatement {
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Stmt>,
 }
 
 pub struct FunctionStatementInner {
     pub name: String,
     pub parameters: Vec<String>,
-    pub body: Box<dyn Statement>,
+    pub body: Stmt,
 }
 
 pub struct FunctionStatement {
@@ -120,7 +149,7 @@ pub enum LogicalKind {
 }
 
 impl Unary {
-    pub fn new(token: Token, right: Box<dyn Expression>) -> Unary {
+    pub fn new(token: Token, right: Expr) -> Unary {
         let type_ = match token.kind {
             TokenKind::Minus => OperatorKind::Negate,
             TokenKind::Bang => OperatorKind::Not,
@@ -135,7 +164,7 @@ impl Unary {
 }
 
 impl Binary {
-    pub fn new(left: Box<dyn Expression>, token: Token, right: Box<dyn Expression>) -> Binary {
+    pub fn new(left: Expr, token: Token, right: Expr) -> Binary {
         let type_ = match token.kind {
             TokenKind::Plus => OperatorKind::Plus,
             TokenKind::Minus => OperatorKind::Minus,
@@ -161,7 +190,7 @@ impl Binary {
 }
 
 impl Logical {
-    pub fn new(left: Box<dyn Expression>, token: Token, right: Box<dyn Expression>) -> Logical {
+    pub fn new(left: Expr, token: Token, right: Expr) -> Logical {
         let kind = match token.kind {
             TokenKind::Or => LogicalKind::Or,
             TokenKind::And => LogicalKind::And,
@@ -196,7 +225,7 @@ impl Literal {
 
 impl Expression for Variable {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
-        match env.borrow().get(&self.token.value) {
+        match env.borrow().get(self.token.value.to_string()) {
             Some(value) => Ok(value),
             None => Err(Traceback{ message: Some(format!("Undefined variable '{}'", self.token.value)), ..Default::default()})
         }
@@ -327,76 +356,71 @@ impl Expression for Logical {
 }
 
 impl Statement for ExpressionStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         self.expression.eval(env)?;
-        Ok(String::new())
+        Ok(())
     }
 }
 
 impl Statement for IfStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         if self.condition.eval(env)?.as_bool() {
             self.then_branch.execute(env)
         } else if let Some(else_branch) = &self.else_branch {
             else_branch.execute(env)
         } else {
-            Ok(String::new())
+            Ok(())
         }
     }
 }
 
 impl Statement for PrintStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let value = self.expression.eval(env)?;
-        Ok(format!("{}\n", value.as_string()))
+        println!("{}", value.as_string());
+        env.borrow().get_env_var(EnvVariable::NewLines).increment();
+        assert!(env.borrow().get_env_var(EnvVariable::NewLines).as_number() < 0.0);
+        Ok(())
     }
 }
 
 impl Statement for VarStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
-        let value = match &self.initializer {
-            Some(expr) => expr.eval(env)?,
-            None => DynValue::none(),
-        };
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
+        let value = self.initializer.eval(env)?;
 
         env.borrow_mut().set(self.name.clone(), value);
 
-        Ok(String::new())
+        Ok(())
     }
 }
 
 impl Statement for BlockStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
-        let mut result = String::new();
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         for statement in &self.statements {
-            result += &statement.execute(env)?;
+            statement.execute(env)?;
         }
-        Ok(result)
+        Ok(())
     }
 }
 
 impl Statement for WhileStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
-        let mut result = String::new();
-
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         while self.condition.eval(env)?.as_bool() {
-            result += &self.body.execute(env)?;
+            self.body.execute(env)?;
         }
-        Ok(result)
+        Ok(())
     }
 }
 
 impl Statement for ForeachStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
-        let mut result = String::new();
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let list = self.collection.eval(env)?;
         if let Some(array) = list.as_list() {
-
             for value in array {
                 env.borrow_mut().set(self.variable.clone(), value);
-                result += &self.body.execute(env)?;
+                self.body.execute(env)?;
             }
-            Ok(result)
+            Ok(())
         } else {
             Err(Traceback {
                 message: Some(format!("'{}' object is not iterable", list.tipe)),
@@ -406,19 +430,19 @@ impl Statement for ForeachStatement {
 }
 
 impl Statement for FunctionStatement {
-    fn execute(&self, env: &Env) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let name = self.inner.borrow().name.clone();
 
         let function = DynValue::from_function(Function::new(self.clone()), name.clone());
 
         env.borrow_mut().set(name, function);
 
-        Ok(String::new())
+        Ok(())
     }
 }
 
 impl FunctionStatement {
-    pub fn new(name: String, parameters: Vec<String>, body: Box<dyn Statement>) -> Self {
+    pub fn new(name: String, parameters: Vec<String>, body: Stmt) -> Self {
         Self {
             inner: Rc::new(RefCell::new(FunctionStatementInner {
                 name,
@@ -433,6 +457,30 @@ impl Clone for FunctionStatement {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+        }
+    }
+}
+
+impl Expression for Call {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
+        let args = self.arguments.iter().map(|arg| arg.eval(env)).collect::<Result<Vec<_>, _>>()?;
+        let maybe_callee = self.callee.eval(env)?;
+
+        if let Some(callee) = maybe_callee.as_callable() {
+            callee.call(env, args)
+        } else {
+            Err(Traceback::from_message(format!("'{}' object is not callable", maybe_callee.tipe).as_str()))
+        }
+    }
+}
+
+
+impl Call {
+    pub fn new(callee: Expr, paren: Token, arguments: Vec<Expr>) -> Self {
+        Self {
+            callee,
+            paren,
+            arguments,
         }
     }
 }
