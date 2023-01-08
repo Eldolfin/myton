@@ -13,11 +13,11 @@ use errors::report_trace;
 use parser::parse;
 use traceback::Traceback;
 use repl::Repl;
-use environment::Environment;
+use environment::{Env,make_env};
 use std::io::prelude::*;
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Env,
 }
 
 const DEBUG_LEXER: bool = false;
@@ -25,7 +25,7 @@ const DEBUG_LEXER: bool = false;
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            environment: Environment::new(),
+            environment: make_env()
         }
     }
 
@@ -93,7 +93,7 @@ impl Interpreter {
         let mut results = String::new();
 
         for mut stmt in program {
-            let r = stmt.execute(&mut self.environment)?;
+            let r = stmt.execute(&self.environment)?;
 
             results.push_str(&r);
         }

@@ -1,0 +1,10 @@
+global=1
+def main():
+  global=2
+  print("global=",global)
+  inner=3
+  print("inner=",inner)
+
+print("global=",global)
+main()
+print("global=",global)

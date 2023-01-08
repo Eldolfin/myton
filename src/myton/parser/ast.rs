@@ -1,15 +1,15 @@
-use crate::myton::environment::Environment;
+use crate::myton::environment::Env;
 
 use super::super::token::{Token, TokenKind};
 use super::super::types::{TypeKind, DynValue};
 use super::super::traceback::Traceback;
 
 pub trait Expression {
-    fn eval(&self, env: &mut Environment) -> Result<DynValue, Traceback>;
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
 }
 
 pub trait Statement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback>;
+    fn execute(&self, env: &Env) -> Result<String, Traceback>;
 }
 
 pub struct Operator {
@@ -83,6 +83,12 @@ pub struct VarStatement {
 
 pub struct BlockStatement {
     pub statements: Vec<Box<dyn Statement>>,
+}
+
+pub struct FunctionStatement {
+    pub name: String,
+    pub parameters: Vec<String>,
+    pub body: Box<dyn Statement>,
 }
 
 pub enum OperatorKind {
@@ -165,13 +171,13 @@ impl Logical {
 }
 
 impl Expression for Literal {
-    fn eval (&self, _: &mut Environment) -> Result<DynValue, Traceback> {
+    fn eval (&self, _: &Env) -> Result<DynValue, Traceback> {
         Ok(DynValue::from_token(&self.token))
     }
 }
 
 impl Expression for List {
-    fn eval(&self, env: &mut Environment) -> Result<DynValue, Traceback> {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         Ok(DynValue::from_vec(self.elements.iter().map(|e| e.eval(env)).collect::<Result<Vec<DynValue>, Traceback>>()?))
     }
 }
@@ -183,8 +189,8 @@ impl Literal {
 }
 
 impl Expression for Variable {
-    fn eval (&self, env: &mut Environment) -> Result<DynValue, Traceback> {
-        match env.get(&self.token.value) {
+    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
+        match env.borrow().get(&self.token.value) {
             Some(value) => Ok(value),
             None => Err(Traceback{ message: Some(format!("Undefined variable '{}'", self.token.value)), ..Default::default()})
         }
@@ -192,13 +198,13 @@ impl Expression for Variable {
 }
 
 impl Expression for Grouping {
-    fn eval (&self, env: &mut Environment) -> Result<DynValue, Traceback> {
+    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         Ok(self.expression.eval(env)?)
     }
 }
 
 impl Expression for Unary {
-    fn eval (&self, env: &mut Environment) -> Result<DynValue, Traceback> {
+    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         let right = self.right.eval(env)?;
 
         match self.operator.kind {
@@ -206,10 +212,10 @@ impl Expression for Unary {
                 if !right.is_number() {
                     return Err(Traceback { message: Some(format!("bad operand type for unary -: '{}'", right.tipe)), pos: self.operator.token.pos.unwrap(), ..Default::default()});
                 }
-                Ok(DynValue::new(Box::new(-right.as_number()), TypeKind::Number))
+                Ok(DynValue::from(-right.as_number()))
             },
             OperatorKind::Not => {
-                Ok(DynValue::new(Box::new(!right.as_bool()), TypeKind::Boolean))
+                Ok(DynValue::from(!right.as_bool()))
             },
             _ => panic!("Invalid token type for unary operator"),
         }
@@ -235,7 +241,7 @@ impl Binary {
 }
 
 impl Expression for Binary {
-    fn eval (&self, env: &mut Environment) -> Result<DynValue, Traceback> {
+    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         let left = self.left.eval(env)?;
         let right = self.right.eval(env)?;
 
@@ -246,47 +252,47 @@ impl Expression for Binary {
         match self.operator.kind {
             OperatorKind::Plus => {
                 if left.is_number() && right.is_number() {
-                    Ok(DynValue::new(Box::new(left.as_number() + right.as_number()), TypeKind::Number))
+                    Ok(DynValue::from(left.as_number() + right.as_number()))
                 } else {
-                    Ok(DynValue::new(Box::new(left.as_string() + &right.as_string()), TypeKind::Stringue))
+                    Ok(DynValue::from(left.as_string() + &right.as_string()))
                 }
             },
             OperatorKind::Minus => {
-                Ok(DynValue::new(Box::new(left.as_number() - right.as_number()), TypeKind::Number))
+                Ok(DynValue::from(left.as_number() - right.as_number()))
             },
             OperatorKind::Multiply => {
                 match left.tipe {
-                    TypeKind::Number => Ok(DynValue::new(Box::new(left.as_number() * right.as_number()), TypeKind::Number)),
-                    TypeKind::Stringue => Ok(DynValue::new(Box::new(left.as_string().repeat(right.as_number() as usize)), TypeKind::Stringue)),
+                    TypeKind::Number => Ok(DynValue::from(left.as_number() * right.as_number())),
+                    TypeKind::Stringue => Ok(DynValue::from(left.as_string().repeat(right.as_number() as usize))),
                     _ => panic!("Invalid left type for * operator"),
                 }
             },
             OperatorKind::Divide => {
-                Ok(DynValue::new(Box::new(left.as_number() / right.as_number()), TypeKind::Number))
+                Ok(DynValue::from(left.as_number() / right.as_number()))
             },
             OperatorKind::Modulo => {
-                Ok(DynValue::new(Box::new(left.as_number() % right.as_number()), TypeKind::Number))
+                Ok(DynValue::from(left.as_number() % right.as_number()))
             },
             OperatorKind::Equal => {
-                Ok(DynValue::new(Box::new(left == right), TypeKind::Boolean))
+                Ok(DynValue::from(left == right))
             },
             OperatorKind::StrictEqual => {
-                Ok(DynValue::new(Box::new(left.tipe == right.tipe && left == right), TypeKind::Boolean))
+                Ok(DynValue::from(left.tipe == right.tipe && left == right))
             },
             OperatorKind::NotEqual => {
-                Ok(DynValue::new(Box::new(left != right), TypeKind::Boolean))
+                Ok(DynValue::from(left != right))
             },
             OperatorKind::Greater => {
-                Ok(DynValue::new(Box::new(left > right), TypeKind::Boolean))
+                Ok(DynValue::from(left > right))
             },
             OperatorKind::GreaterEqual => {
-                Ok(DynValue::new(Box::new(left >= right), TypeKind::Boolean))
+                Ok(DynValue::from(left >= right))
             },
             OperatorKind::Less => {
-                Ok(DynValue::new(Box::new(left < right), TypeKind::Boolean))
+                Ok(DynValue::from(left < right))
             },
             OperatorKind::LessEqual => {
-                Ok(DynValue::new(Box::new(left <= right), TypeKind::Boolean))
+                Ok(DynValue::from(left <= right))
             },
             _ => panic!("Invalid token type for binary operator"),
         }
@@ -294,7 +300,7 @@ impl Expression for Binary {
 }
 
 impl Expression for Logical {
-    fn eval(&self, env: &mut Environment) -> Result<DynValue, Traceback> {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let left = self.left.eval(env)?;
 
         match self.kind {
@@ -315,17 +321,17 @@ impl Expression for Logical {
 }
 
 impl Statement for ExpressionStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         self.expression.eval(env)?;
         Ok(String::new())
     }
 }
 
 impl Statement for IfStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         if self.condition.eval(env)?.as_bool() {
             self.then_branch.execute(env)
-        } else if let Some(else_branch) = &mut self.else_branch {
+        } else if let Some(else_branch) = &self.else_branch {
             else_branch.execute(env)
         } else {
             Ok(String::new())
@@ -334,29 +340,29 @@ impl Statement for IfStatement {
 }
 
 impl Statement for PrintStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         let value = self.expression.eval(env)?;
         Ok(format!("{}\n", value.as_string()))
     }
 }
 
 impl Statement for VarStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         let value = match &self.initializer {
             Some(expr) => expr.eval(env)?,
-            None => DynValue::new(Box::new(()), TypeKind::Nil),
+            None => DynValue::none(),
         };
 
-        env.set(self.name.clone(), value);
+        env.borrow_mut().set(self.name.clone(), value);
 
         Ok(String::new())
     }
 }
 
 impl Statement for BlockStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         let mut result = String::new();
-        for statement in &mut self.statements {
+        for statement in &self.statements {
             result += &statement.execute(env)?;
         }
         Ok(result)
@@ -364,7 +370,7 @@ impl Statement for BlockStatement {
 }
 
 impl Statement for WhileStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         let mut result = String::new();
 
         while self.condition.eval(env)?.as_bool() {
@@ -375,13 +381,13 @@ impl Statement for WhileStatement {
 }
 
 impl Statement for ForeachStatement {
-    fn execute(&mut self, env: &mut Environment) -> Result<String, Traceback> {
+    fn execute(&self, env: &Env) -> Result<String, Traceback> {
         let mut result = String::new();
         let list = self.collection.eval(env)?;
         if let Some(array) = list.as_list() {
 
             for value in array {
-                env.set(self.variable.clone(), value);
+                env.borrow_mut().set(self.variable.clone(), value);
                 result += &self.body.execute(env)?;
             }
             Ok(result)

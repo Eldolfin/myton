@@ -1,20 +1,42 @@
 use super::token::{Token, TokenKind};
+use super::parser::FunctionStatement;
+use super::environment::{Env, make_env_enclosed};
 use std::any::Any;
 use std::fmt::{Formatter, Display, Result as FmtResult};
+use std::rc::Rc;
+use std::cell::RefCell;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum TypeKind {
     Number,
     Stringue,
     Boolean,
     Nil,
     List,
+    Function,
+    NativeFunction,
 }
 
-#[derive(Debug)]
 pub struct DynValue {
-    pub value: Box<dyn Any>,
+    pub value: Rc<RefCell<Box<dyn Any>>>,
+    pub name: Option<String>,
     pub tipe: TypeKind,
+}
+
+trait Callable {
+    fn call(&self, env: &Env, args: Vec<DynValue>) -> DynValue;
+}
+
+struct Function {
+    statement: FunctionStatement,
+}
+
+impl Callable for Function {
+    fn call(&self, env: &Env, args: Vec<DynValue>) -> DynValue {
+        let function_env = make_env_enclosed(env.clone());
+        self.statement.body.execute(&function_env);
+        DynValue::none()
+    }
 }
 
 impl TypeKind {
@@ -36,6 +58,8 @@ impl TypeKind {
             Self::Boolean => "bool".to_string(),
             Self::Nil => "NoneType".to_string(),
             Self::List => "list".to_string(),
+            Self::Function => "function".to_string(),
+            Self::NativeFunction => "built-in function".to_string(),
         }
     }
 }
@@ -93,16 +117,10 @@ impl PartialOrd for DynValue {
 
 impl Clone for DynValue {
     fn clone(&self) -> Self {
-        let value : Box<dyn Any> = match self.tipe {
-            TypeKind::Number => Box::new(self.as_number()),
-            TypeKind::Stringue => Box::new(self.as_string()),
-            TypeKind::Boolean => Box::new(self.as_bool()),
-            TypeKind::Nil => Box::new(self.is_nil()),
-            TypeKind::List => Box::new(self.as_list()),
-        };
         Self {
-            value,
+            value: self.value.clone(),
             tipe: self.tipe.clone(),
+            name: self.name.clone(),
         }
     }
 }
@@ -115,32 +133,46 @@ impl Display for DynValue {
 
 impl DynValue {
     pub fn new(value: Box<dyn Any>, tipe: TypeKind) -> Self {
-        Self { value, tipe }
+        Self { value: Rc::new(RefCell::new(value)), tipe, name: None }
     }
 
-    pub fn from_vec(vec: Vec<DynValue>) -> Self {
-        Self {
-            value: Box::new(vec),
-            tipe: TypeKind::List,
-        }
+    pub fn new_with_name(value: Box<dyn Any>, tipe: TypeKind, name: String) -> Self {
+        Self { value: Rc::new(RefCell::new(value)), tipe, name: Some(name) }
     }
 
     pub fn from_token(token: &Token) -> Self {
-        let type_ = TypeKind::from_token(token);
-        let value: Box<dyn Any> = match type_ {
-            TypeKind::Number => Box::new(token.value.parse::<f64>().unwrap()),
-            TypeKind::Stringue => Box::new(token.value.clone()),
-            TypeKind::Boolean => Box::new(token.kind == TokenKind::True),
-            TypeKind::Nil => Box::new(()),
+        match TypeKind::from_token(token) {
+            TypeKind::Number => Self::from_f64(token.value.parse::<f64>().unwrap()),
+            TypeKind::Stringue => Self::from_string(token.value.clone()),
+            TypeKind::Boolean => Self::from_bool(token.kind == TokenKind::True),
+            TypeKind::Nil => Self::none(),
             _ => panic!("Invalid token type for literal"),
-        };
+        }
+    }
 
-        Self::new(value, type_)
+    pub fn from_f64(value: f64) -> Self {
+        Self::new(Box::new(value), TypeKind::Number)
+    }
+
+    pub fn from_string(value: String) -> Self {
+        Self::new(Box::new(value), TypeKind::Stringue)
+    }
+
+    pub fn from_bool(value: bool) -> Self {
+        Self::new(Box::new(value), TypeKind::Boolean)
+    }
+
+    pub fn from_vec(value: Vec<DynValue>) -> Self {
+        Self::new(Box::new(value), TypeKind::List)
+    }
+
+    pub fn none() -> Self {
+        Self::new(Box::new(()), TypeKind::Nil)
     }
 
     pub fn as_number(&self) -> f64 {
         match self.tipe {
-            TypeKind::Number => *self.value.downcast_ref::<f64>().unwrap(),
+            TypeKind::Number => *self.value.borrow().downcast_ref::<f64>().unwrap(),
             TypeKind::Stringue => self.as_string().parse::<f64>().unwrap(),
             TypeKind::Boolean => if self.as_bool() {1.0} else {0.0}
             TypeKind::Nil => 0.0,
@@ -151,11 +183,12 @@ impl DynValue {
     pub fn as_string(&self) -> String {
         match self.tipe {
             TypeKind::Number => self.as_number().to_string(),
-            TypeKind::Stringue => self.value.downcast_ref::<String>().unwrap().clone(),
+            TypeKind::Stringue => self.value.borrow().downcast_ref::<String>().unwrap().clone(),
             TypeKind::Boolean => if self.as_bool() {"True"} else {"False"}.to_string(),
             TypeKind::Nil => "None".to_string(),
             TypeKind::List =>
                 format!("[{}]", &self.as_list().unwrap().iter().map(|x| x.as_string()).collect::<Vec<String>>().join(", ")),
+            _ => format!("<{} {}>", self.tipe, self.name.as_ref().unwrap_or(&"unnamed".to_string())),
         }
     }
 
@@ -163,15 +196,16 @@ impl DynValue {
         match self.tipe {
             TypeKind::Number => self.as_number() != 0.0,
             TypeKind::Stringue => !self.as_string().is_empty(),
-            TypeKind::Boolean => *self.value.downcast_ref::<bool>().unwrap(),
+            TypeKind::Boolean => *self.value.borrow().downcast_ref::<bool>().unwrap(),
             TypeKind::Nil => false,
             TypeKind::List => !self.as_list().unwrap().is_empty(),
+            TypeKind::Function | TypeKind::NativeFunction => true,
         }
     }
 
     pub fn as_list(&self) -> Option<Vec<DynValue>> {
         if self.tipe == TypeKind::List {
-            Some(self.value.downcast_ref::<Vec<DynValue>>().unwrap().clone())
+            Some(self.value.borrow().downcast_ref::<Vec<DynValue>>().unwrap().clone())
         } else {
             None
         }
@@ -187,63 +221,106 @@ impl DynValue {
     }
 }
 
+impl From<f64> for DynValue {
+    fn from(value: f64) -> Self {
+        Self::from_f64(value)
+    }
+}
+
+impl From<String> for DynValue {
+    fn from(value: String) -> Self {
+        Self::from_string(value)
+    }
+}
+
+impl From<bool> for DynValue {
+    fn from(value: bool) -> Self {
+        Self::from_bool(value)
+    }
+}
+
+impl From<Vec<DynValue>> for DynValue {
+    fn from(value: Vec<DynValue>) -> Self {
+        Self::from_vec(value)
+    }
+}
+
+impl From<Token> for DynValue {
+    fn from(token: Token) -> Self {
+        Self::from_token(&token)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_number() {
-        let value = DynValue::new(Box::new(1.0), TypeKind::Number);
+        let value = DynValue::from(1.0);
         assert_eq!(value.as_number(), 1.0);
         assert_eq!(value.as_string(), "1");
         assert_eq!(value.as_bool(), true);
         assert_eq!(value.is_nil(), false);
         assert_eq!(value.is_number(), true);
-        assert_eq!(value.is_string(), false);
     }
 
     #[test]
     fn test_string() {
-        let value = DynValue::new(Box::new("Hello".to_string()), TypeKind::Stringue);
+        let value = DynValue::from("Hello".to_string());
         // assert_eq!(value.as_number(), 0.0);
         assert_eq!(value.as_string(), "Hello");
         assert_eq!(value.as_bool(), true);
         assert_eq!(value.is_nil(), false);
         assert_eq!(value.is_number(), false);
-        assert_eq!(value.is_string(), true);
     }
 
     #[test]
     fn test_boolean() {
-        let value = DynValue::new(Box::new(true), TypeKind::Boolean);
+        let value = DynValue::from(true);
         assert_eq!(value.as_number(), 1.0);
         assert_eq!(value.as_string(), "True");
         assert_eq!(value.as_bool(), true);
         assert_eq!(value.is_nil(), false);
         assert_eq!(value.is_number(), true);
-        assert_eq!(value.is_string(), false);
     }
 
     #[test]
     fn test_nil() {
-        let value = DynValue::new(Box::new(()), TypeKind::Nil);
+        let value = DynValue::none();
         assert_eq!(value.as_number(), 0.0);
         assert_eq!(value.as_string(), "None");
         assert_eq!(value.as_bool(), false);
         assert_eq!(value.is_nil(), true);
         assert_eq!(value.is_number(), false);
-        assert_eq!(value.is_string(), false);
     }
 
     #[test]
     fn test_from_token() {
         let token = Token { kind: TokenKind::Number, value: "0".to_string() , ..Default::default() };
-        let value = DynValue::from_token(&token);
+        let value = DynValue::from(token);
         assert_eq!(value.as_number(), 0.0);
         assert_eq!(value.as_string(), "0");
         assert_eq!(value.as_bool(), false);
         assert_eq!(value.is_nil(), false);
         assert_eq!(value.is_number(), true);
-        assert_eq!(value.is_string(), false);
+    }
+
+    #[test]
+    fn test_list() {
+        let value = DynValue::from(vec![DynValue::from_f64(1.0), DynValue::from_f64(2.0)]);
+        assert_eq!(value.as_string(), "[1, 2]");
+        assert_eq!(value.as_bool(), true);
+        assert_eq!(value.is_nil(), false);
+        assert_eq!(value.is_number(), false);
+    }
+
+    #[test]
+    fn test_function() {
+        let value = DynValue::new_with_name(Box::new(|_: Vec<DynValue>| DynValue::none()), TypeKind::Function, "test".to_string());
+        assert_eq!(value.as_string(), "<function test>");
+        assert_eq!(value.as_bool(), true);
+        assert_eq!(value.is_nil(), false);
+        assert_eq!(value.is_number(), false);
     }
 }

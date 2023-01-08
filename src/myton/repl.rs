@@ -1,7 +1,7 @@
 use termion::{event::Key, raw::RawTerminal};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use std::io::{stdin, stdout, Stdin, Stdout, Write};
+use std::io::{stdin, stdout, Stdout, Write};
 
 const FORBIDENT_REPL_CHARS: &str = "°éèçàù²µù£¤§¨¹̣̣̣̣̣·´¡⅛£$⅜⅝⅞™±°¬¿°¯ˇ˘˙÷×˝";
 const PROMPT: &str = ">>> ";

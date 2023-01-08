@@ -2,7 +2,7 @@ mod ast;
 
 use super::token::{TokenKind, Token};
 use super::traceback::Traceback;
-use ast::*;
+pub use ast::*;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult {
     let mut parser = Parser::new(tokens);

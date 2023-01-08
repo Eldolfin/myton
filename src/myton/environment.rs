@@ -3,7 +3,7 @@ use super::types::DynValue;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-type Env = Rc<RefCell<Environment>>;
+pub type Env = Rc<RefCell<Environment>>;
 
 pub struct Environment {
     enclosing: Option<Env>,
@@ -11,14 +11,14 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Environment {
             values: HashMap::new(),
             enclosing: None,
         }
     }
 
-    pub fn new_enclosed(enclosing: Env) -> Self {
+    fn new_enclosed(enclosing: Env) -> Self {
         Environment {
             values: HashMap::new(),
             enclosing: Some(enclosing),
@@ -38,4 +38,12 @@ impl Environment {
     pub fn set(&mut self, name: String, value: DynValue) {
         self.values.insert(name, value);
     }
+}
+
+pub fn make_env() -> Env {
+    Rc::new(RefCell::new(Environment::new()))
+}
+
+pub fn make_env_enclosed(enclosing: Env) -> Env {
+    Rc::new(RefCell::new(Environment::new_enclosed(enclosing)))
 }
