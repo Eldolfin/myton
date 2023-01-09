@@ -2,13 +2,15 @@ use super::environment::Env;
 use super::token::{Token, TokenKind};
 use super::types::{TypeKind, DynValue};
 use super::traceback::Traceback;
-use super::resolver::Resolvable;
+use super::resolver::{Resolvable, UUID};
 
 pub trait Evaluable {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
 }
 
-pub trait Expression: Evaluable + Resolvable {}
+pub trait Expression: Evaluable + Resolvable {
+    fn uuid(&self) -> UUID;
+}
 
 pub type EXPR = Box<dyn Expression>;
 
@@ -19,41 +21,49 @@ pub struct Operator {
 
 pub struct Literal {
     pub token: Token,
+    uuid: UUID,
 }
 
 pub struct List {
     pub elements: Vec<EXPR>,
+    uuid: UUID,
 }
 
 pub struct Variable {
     pub token: Token,
+    uuid: UUID,
 }
 
 pub struct Binary {
     pub left: EXPR,
     pub operator: Operator,
     pub right: EXPR,
+    uuid: UUID,
 }
 
 pub struct Logical {
     pub left: EXPR,
     pub kind: LogicalKind,
     pub right: EXPR,
+    uuid: UUID,
 }
 
 pub struct Unary {
     pub operator: Operator,
     pub right: EXPR,
+    uuid: UUID,
 }
 
 pub struct Call {
     pub callee: EXPR,
     pub paren: Token,
     pub arguments: Vec<EXPR>,
+    uuid: UUID,
 }
 
 pub struct Grouping {
     pub expression: EXPR,
+    uuid: UUID,
 }
 
 pub enum OperatorKind {
@@ -79,7 +89,7 @@ pub enum LogicalKind {
 }
 
 impl Unary {
-    pub fn new(token: Token, right: EXPR) -> Unary {
+    pub fn new(token: Token, right: EXPR, uuid: UUID) -> Unary {
         let type_ = match token.kind {
             TokenKind::Minus => OperatorKind::Negate,
             TokenKind::Bang => OperatorKind::Not,
@@ -88,13 +98,14 @@ impl Unary {
 
         Unary {
             operator: Operator{token, kind: type_},
-            right
+            right,
+            uuid
         }
     }
 }
 
 impl Binary {
-    pub fn new(left: EXPR, token: Token, right: EXPR) -> Binary {
+    pub fn new(left: EXPR, token: Token, right: EXPR, uuid: UUID) -> Binary {
         let type_ = match token.kind {
             TokenKind::Plus => OperatorKind::Plus,
             TokenKind::Minus => OperatorKind::Minus,
@@ -114,13 +125,14 @@ impl Binary {
         Binary {
             left,
             operator: Operator{token, kind: type_},
-            right
+            right,
+            uuid,
         }
     }
 }
 
 impl Logical {
-    pub fn new(left: EXPR, token: Token, right: EXPR) -> Logical {
+    pub fn new(left: EXPR, token: Token, right: EXPR, uuid: UUID) -> Logical {
         let kind = match token.kind {
             TokenKind::Or => LogicalKind::Or,
             TokenKind::And => LogicalKind::And,
@@ -130,7 +142,8 @@ impl Logical {
         Logical {
             left,
             kind, 
-            right
+            right,
+            uuid,
         }
     }
 }
@@ -147,9 +160,18 @@ impl Evaluable for List {
     }
 }
 
+impl List {
+    pub fn new(elements: Vec<EXPR>, uuid: UUID) -> List {
+        List {
+            elements,
+            uuid,
+        }
+    }
+}
+
 impl Literal {
-    pub fn new(token: Token) -> Literal {
-        Literal { token }
+    pub fn new(token: Token, uuid: UUID) -> Literal {
+        Literal { token, uuid }
     }
 }
 
@@ -167,14 +189,20 @@ impl Evaluable for Variable {
 }
 
 impl Variable {
-    pub fn new(token: Token) -> Variable {
-        Variable { token }
+    pub fn new(token: Token, uuid: UUID) -> Variable {
+        Variable { token, uuid }
     }
 }
 
 impl Evaluable for Grouping {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         Ok(self.expression.eval(env)?)
+    }
+}
+
+impl Grouping {
+    pub fn new(expression: EXPR, uuid: UUID) -> Grouping {
+        Grouping { expression, uuid }
     }
 }
 
@@ -322,20 +350,62 @@ impl Evaluable for Call {
 
 
 impl Call {
-    pub fn new(callee: EXPR, paren: Token, arguments: Vec<EXPR>) -> Self {
+    pub fn new(callee: EXPR, paren: Token, arguments: Vec<EXPR>, uuid: UUID) -> Self {
         Self {
             callee,
             paren,
             arguments,
+            uuid,
         }
     }
 }
 
-impl Expression for Unary {}
-impl Expression for Binary {}
-impl Expression for Logical {}
-impl Expression for Call {}
-impl Expression for Grouping {}
-impl Expression for Literal {}
-impl Expression for Variable {}
-impl Expression for List {}
+impl Clone for Variable {
+    fn clone(&self) -> Self {
+        Self {
+            token: self.token.clone(),
+            uuid: self.uuid,
+        }
+    }
+}
+
+impl Expression for Unary {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for Binary {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for Logical {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for Call {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for Grouping {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for Literal {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for Variable {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+impl Expression for List {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}

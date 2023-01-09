@@ -25,10 +25,12 @@ use types::DynValue;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::io::{Write, Stdout, stdout};
+use resolver::Resolver;
 
 pub struct Interpreter {
     environment: Env,
     output: Rc<RefCell<Box<dyn MyWrite>>>,
+    resolver: Resolver,
 }
 
 const DEBUG_LEXER: bool = false;
@@ -42,10 +44,16 @@ impl Interpreter {
         let env = make_env();
         define_globals(&env);
 
+        let resolver = Resolver::new();
+
+
+
         Interpreter {
             environment: env,
             output,
+            resolver
         }
+            
     }
 
     pub fn run_file(&mut self, path: &str) {
@@ -105,7 +113,11 @@ impl Interpreter {
 
         let program = parser.parse()?;
 
-        for stmt in program {
+        for stmt in &program {
+            stmt.resolve(&mut self.resolver)?;
+        }
+
+        for stmt in &program {
             stmt.execute(&self.environment)?;
         }
 

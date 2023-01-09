@@ -172,7 +172,7 @@ impl Parser {
         while self.match_token(vec![TokenKind::Or]) {
             let operator = self.previous();
             let right = self.and()?;
-            expr = Box::new(Logical::new(expr, operator, right));
+            expr = Box::new(Logical::new(expr, operator, right, self.current));
         }
 
         Ok(expr)
@@ -184,7 +184,7 @@ impl Parser {
         while self.match_token(vec![TokenKind::And]) {
             let operator = self.previous();
             let right = self.equality()?;
-            expr = Box::new(Logical::new(expr, operator, right));
+            expr = Box::new(Logical::new(expr, operator, right, self.current));
         }
 
         Ok(expr)
@@ -196,7 +196,7 @@ impl Parser {
         while self.match_token(vec![TokenKind::BangEqual, TokenKind::EqualEqual, TokenKind::EqualEqualEqual]) {
             let operator = self.previous();
             let right = self.comparison()?;
-            expr = Box::new(Binary::new(expr, operator, right));
+            expr = Box::new(Binary::new(expr, operator, right, self.current));
         }
         Ok(expr)
     }
@@ -206,7 +206,7 @@ impl Parser {
         while self.match_token(vec![TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) {
             let operator = self.previous();
             let right = self.term()?;
-            expr = Box::new(Binary::new(expr, operator, right));
+            expr = Box::new(Binary::new(expr, operator, right, self.current));
         }
         Ok(expr)
     }
@@ -216,7 +216,7 @@ impl Parser {
         while self.match_token(vec![TokenKind::Plus, TokenKind::Minus]) {
             let operator = self.previous();
             let right = self.factor()?;
-            expr = Box::new(Binary::new(expr, operator, right));
+            expr = Box::new(Binary::new(expr, operator, right, self.current));
         }
         Ok(expr)
     }
@@ -226,7 +226,7 @@ impl Parser {
         while self.match_token(vec![TokenKind::Star, TokenKind::Slash, TokenKind::Percent]) {
             let operator = self.previous();
             let right = self.unary()?;
-            expr = Box::new(Binary::new(expr, operator, right));
+            expr = Box::new(Binary::new(expr, operator, right, self.current));
         }
         Ok(expr)
     }
@@ -235,7 +235,7 @@ impl Parser {
         if self.match_token(vec![TokenKind::Bang, TokenKind::Minus]) {
             let operator = self.previous();
             let right = self.unary()?;
-            return Ok(Box::new(Unary::new(operator, right)));
+            return Ok(Box::new(Unary::new(operator, right, self.current)));
         }
         self.call()
     }
@@ -261,25 +261,25 @@ impl Parser {
             } {}
         }
         let paren = self.consume(TokenKind::RightParen, "Expect ')' after arguments.")?;
-        Ok(Box::new(Call::new(callee, paren, arguments)))
+        Ok(Box::new(Call::new(callee, paren, arguments, self.current)))
     }
 
     fn primary(&mut self) -> Result<EXPR, Traceback> {
         if self.match_token(vec![TokenKind::Number, TokenKind::Stringue, TokenKind::False, TokenKind::True, TokenKind::Nil]) {
-            return Ok(Box::new(Literal::new(self.previous())));
+            return Ok(Box::new(Literal::new(self.previous(), self.current)));
         }
         if self.match_token(vec![TokenKind::Pass]) {
             let mut token = self.previous();
             token.kind = TokenKind::Nil;
-            return Ok(Box::new(Literal::new(token)));
+            return Ok(Box::new(Literal::new(token, self.current)));
         }
         if self.match_token(vec![TokenKind::LeftParen]) {
             let expr = self.expression()?;
             self.consume(TokenKind::RightParen, "Expect ')' after expression.")?;
-            return Ok(Box::new(Grouping{expression: expr}));
+            return Ok(Box::new(Grouping::new(expr, self.current)));
         }
         if self.match_token(vec![TokenKind::Identifier]) {
-            return Ok(Box::new(Variable::new(self.previous())));
+            return Ok(Box::new(Variable::new(self.previous(), self.current)));
         }
         if self.match_token(vec![TokenKind::LeftBracket]) {
             let mut elements = Vec::new();
@@ -291,7 +291,7 @@ impl Parser {
             }
 
             self.consume(TokenKind::RightBracket, "Expect ']' after expression.")?;
-            return Ok(Box::new(List{elements}));
+            return Ok(Box::new(List::new(elements, self.current)));
         }
 
         Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})

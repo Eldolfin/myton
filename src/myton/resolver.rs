@@ -6,25 +6,29 @@ use std::collections::HashMap;
 
 
 type ResolveResult = Result<(), Traceback>;
-type UUID = usize;
+pub type UUID = usize;
 
-struct Resolver {
+pub struct Resolver {
     scopes :Vec<HashMap<String, bool>>,
     locals :HashMap<UUID, usize>, // UUID -> depth
 }
 
 pub trait Resolvable {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult;
-
-    fn uuid(&self) -> UUID;
 }
 
 
 
 impl Resolver {
+    pub fn new() -> Resolver {
+        Resolver {
+            scopes: vec![HashMap::new()],
+            locals: HashMap::new(),
+        }
+    }
     // STATEMENTS
 
-    pub fn block(&mut self, block: &BlockStatement) -> ResolveResult {
+    fn block(&mut self, block: &BlockStatement) -> ResolveResult {
         self.begin_scope();
         self.stmts(&block.statements);
         self.end_scope();
@@ -57,9 +61,8 @@ impl Resolver {
 
     fn var(&mut self, stmt: &VarStatement) -> ResolveResult {
         self.declare(&stmt.name);
-        self.expression_stmt(&ExpressionStatement {
-            expression: stmt.initializer,
-        })?;
+
+        stmt.initializer.resolve(self)?;
 
         Ok(())
     }
@@ -87,7 +90,9 @@ impl Resolver {
             }
         }
 
-        self.local(&Box::new(*expr), &expr.token);
+        let casted :EXPR = Box::new(expr.clone());
+
+        self.local(&casted, &expr.token.clone());
         Ok(())
     }
 
@@ -101,18 +106,19 @@ impl Resolver {
     }
 
     fn function(&mut self, function: &FunctionStatement) -> ResolveResult {
-        self.declare(&function.inner.borrow().name);
-        self.define(&function.inner.borrow().name);
+        self.declare(&function.inner.borrow().name)?;
+        self.define(&function.inner.borrow().name)?;
 
         self.resolve_function(function)?;
+
         Ok(())
     }
 
     fn resolve_function(&mut self, function: &FunctionStatement) -> ResolveResult {
         self.begin_scope();
         for param in &function.inner.borrow().parameters {
-            self.declare(param);
-            self.define(param);
+            self.declare(param)?;
+            self.define(param)?;
         }
         self.stmt(&function.inner.borrow().body)?;
         self.end_scope();
@@ -146,8 +152,8 @@ impl Resolver {
     }
 
     fn foreach(&mut self, stmt: &ForeachStatement) -> ResolveResult {
-        self.declare(&stmt.variable);
-        self.define(&stmt.variable);
+        self.declare(&stmt.variable)?;
+        self.define(&stmt.variable)?;
         stmt.collection.resolve(self)?;
         stmt.body.resolve(self)?;
         Ok(())
