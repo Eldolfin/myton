@@ -60,9 +60,9 @@ impl Resolver {
     }
 
     fn var(&mut self, stmt: &VarStatement) -> ResolveResult {
-        self.declare(&stmt.name);
-
+        self.declare(&stmt.name)?;
         stmt.initializer.resolve(self)?;
+        self.define(&stmt.name)?;
 
         Ok(())
     }
