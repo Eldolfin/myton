@@ -1,14 +1,16 @@
 use super::environment::Env;
-use super::functions::*;
 use super::token::{Token, TokenKind};
 use super::types::{TypeKind, DynValue};
 use super::traceback::Traceback;
+use super::resolver::Resolvable;
 
-pub trait Expression {
+pub trait Evaluable {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
 }
 
-pub type Expr = Box<dyn Expression>;
+pub trait Expression: Evaluable + Resolvable {}
+
+pub type EXPR = Box<dyn Expression>;
 
 pub struct Operator {
     token: Token,
@@ -20,7 +22,7 @@ pub struct Literal {
 }
 
 pub struct List {
-    pub elements: Vec<Expr>,
+    pub elements: Vec<EXPR>,
 }
 
 pub struct Variable {
@@ -28,30 +30,30 @@ pub struct Variable {
 }
 
 pub struct Binary {
-    left: Expr,
-    operator: Operator,
-    right: Expr,
+    pub left: EXPR,
+    pub operator: Operator,
+    pub right: EXPR,
 }
 
 pub struct Logical {
-    left: Expr,
-    kind: LogicalKind,
-    right: Expr,
+    pub left: EXPR,
+    pub kind: LogicalKind,
+    pub right: EXPR,
 }
 
 pub struct Unary {
-    operator: Operator,
-    right: Expr,
+    pub operator: Operator,
+    pub right: EXPR,
 }
 
 pub struct Call {
-    pub callee: Expr,
-    paren: Token,
-    arguments: Vec<Expr>,
+    pub callee: EXPR,
+    pub paren: Token,
+    pub arguments: Vec<EXPR>,
 }
 
 pub struct Grouping {
-    pub expression: Expr,
+    pub expression: EXPR,
 }
 
 pub enum OperatorKind {
@@ -77,7 +79,7 @@ pub enum LogicalKind {
 }
 
 impl Unary {
-    pub fn new(token: Token, right: Expr) -> Unary {
+    pub fn new(token: Token, right: EXPR) -> Unary {
         let type_ = match token.kind {
             TokenKind::Minus => OperatorKind::Negate,
             TokenKind::Bang => OperatorKind::Not,
@@ -92,7 +94,7 @@ impl Unary {
 }
 
 impl Binary {
-    pub fn new(left: Expr, token: Token, right: Expr) -> Binary {
+    pub fn new(left: EXPR, token: Token, right: EXPR) -> Binary {
         let type_ = match token.kind {
             TokenKind::Plus => OperatorKind::Plus,
             TokenKind::Minus => OperatorKind::Minus,
@@ -118,7 +120,7 @@ impl Binary {
 }
 
 impl Logical {
-    pub fn new(left: Expr, token: Token, right: Expr) -> Logical {
+    pub fn new(left: EXPR, token: Token, right: EXPR) -> Logical {
         let kind = match token.kind {
             TokenKind::Or => LogicalKind::Or,
             TokenKind::And => LogicalKind::And,
@@ -133,13 +135,13 @@ impl Logical {
     }
 }
 
-impl Expression for Literal {
+impl Evaluable for Literal {
     fn eval (&self, _: &Env) -> Result<DynValue, Traceback> {
         Ok(DynValue::from_token(&self.token))
     }
 }
 
-impl Expression for List {
+impl Evaluable for List {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         Ok(DynValue::from_vec(self.elements.iter().map(|e| e.eval(env)).collect::<Result<Vec<DynValue>, Traceback>>()?))
     }
@@ -151,7 +153,7 @@ impl Literal {
     }
 }
 
-impl Expression for Variable {
+impl Evaluable for Variable {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         match env.borrow().get(self.token.value.to_string()) {
             Some(value) => Ok(value),
@@ -164,13 +166,19 @@ impl Expression for Variable {
     }
 }
 
-impl Expression for Grouping {
+impl Variable {
+    pub fn new(token: Token) -> Variable {
+        Variable { token }
+    }
+}
+
+impl Evaluable for Grouping {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         Ok(self.expression.eval(env)?)
     }
 }
 
-impl Expression for Unary {
+impl Evaluable for Unary {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         let right = self.right.eval(env)?;
 
@@ -207,7 +215,7 @@ impl Binary {
     }
 }
 
-impl Expression for Binary {
+impl Evaluable for Binary {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
         let left = self.left.eval(env)?;
         let right = self.right.eval(env)?;
@@ -266,7 +274,7 @@ impl Expression for Binary {
     }
 }
 
-impl Expression for Logical {
+impl Evaluable for Logical {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let left = self.left.eval(env)?;
 
@@ -288,7 +296,7 @@ impl Expression for Logical {
 }
 
 
-impl Expression for Call {
+impl Evaluable for Call {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let args = self.arguments.iter().map(|arg| arg.eval(env)).collect::<Result<Vec<_>, _>>()?;
         let maybe_callee = self.callee.eval(env)?;
@@ -314,7 +322,7 @@ impl Expression for Call {
 
 
 impl Call {
-    pub fn new(callee: Expr, paren: Token, arguments: Vec<Expr>) -> Self {
+    pub fn new(callee: EXPR, paren: Token, arguments: Vec<EXPR>) -> Self {
         Self {
             callee,
             paren,
@@ -322,3 +330,12 @@ impl Call {
         }
     }
 }
+
+impl Expression for Unary {}
+impl Expression for Binary {}
+impl Expression for Logical {}
+impl Expression for Call {}
+impl Expression for Grouping {}
+impl Expression for Literal {}
+impl Expression for Variable {}
+impl Expression for List {}

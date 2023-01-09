@@ -4,48 +4,51 @@ use std::io::Write;
 
 use super::environment::{Env, EnvVariable};
 use super::MyWrite;
-use super::expression::Expr;
+use super::expression::EXPR;
 use super::traceback::Traceback;
 use super::token::Token;
 use super::types::DynValue;
 use super::functions::Function;
+use super::resolver::Resolvable;
 
-pub trait Statement {
+pub trait Executable {
     fn execute(&self, env: &Env) -> Result<(), Traceback>;
 }
+
+pub trait Statement: Executable + Resolvable {}
 
 pub type STMT = Box<dyn Statement>;
 
 pub struct ExpressionStatement {
-    pub expression: Expr,
+    pub expression: EXPR,
 }
 
 pub struct IfStatement {
-    pub condition: Expr,
+    pub condition: EXPR,
     pub then_branch: STMT,
     pub else_branch: Option<STMT>,
 }
 
 pub struct WhileStatement {
-    pub condition: Expr,
+    pub condition: EXPR,
     pub body: STMT,
 }
 
 pub struct ForeachStatement {
-    pub variable: String,
-    pub collection: Expr,
+    pub variable: Token,
+    pub collection: EXPR,
     pub body: STMT,
 }
 
 
 pub struct PrintStatement {
-    pub expression: Expr,
+    pub expression: EXPR,
     pub output: Rc<RefCell<Box<dyn MyWrite>>>,
 }
 
 pub struct VarStatement {
-    pub name: String,
-    pub initializer: Expr,
+    pub name: Token,
+    pub initializer: EXPR,
 }
 
 pub struct BlockStatement {
@@ -53,8 +56,8 @@ pub struct BlockStatement {
 }
 
 pub struct FunctionStatementInner {
-    pub name: String,
-    pub parameters: Vec<String>,
+    pub name: Token,
+    pub parameters: Vec<Token>,
     pub body: STMT,
 }
 
@@ -64,17 +67,17 @@ pub struct FunctionStatement {
 
 pub struct ReturnStatement {
     pub keyword: Token,
-    pub value: Option<Expr>,
+    pub value: Option<EXPR>,
 }
 
-impl Statement for ExpressionStatement {
+impl Executable for ExpressionStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         self.expression.eval(env)?;
         Ok(())
     }
 }
 
-impl Statement for IfStatement {
+impl Executable for IfStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         if self.condition.eval(env)?.as_bool() {
             self.then_branch.execute(env)
@@ -86,7 +89,7 @@ impl Statement for IfStatement {
     }
 }
 
-impl Statement for PrintStatement {
+impl Executable for PrintStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let value = self.expression.eval(env)?.as_string();
         
@@ -99,17 +102,17 @@ impl Statement for PrintStatement {
     }
 }
 
-impl Statement for VarStatement {
+impl Executable for VarStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let value = self.initializer.eval(env)?;
 
-        env.borrow_mut().set(self.name.clone(), value);
+        env.borrow_mut().set(self.name.value.clone(), value);
 
         Ok(())
     }
 }
 
-impl Statement for BlockStatement {
+impl Executable for BlockStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         for statement in &self.statements {
             statement.execute(env)?;
@@ -118,7 +121,7 @@ impl Statement for BlockStatement {
     }
 }
 
-impl Statement for WhileStatement {
+impl Executable for WhileStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         while self.condition.eval(env)?.as_bool() {
             self.body.execute(env)?;
@@ -127,12 +130,12 @@ impl Statement for WhileStatement {
     }
 }
 
-impl Statement for ForeachStatement {
+impl Executable for ForeachStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let list = self.collection.eval(env)?;
         if let Some(array) = list.as_list() {
             for value in array {
-                env.borrow_mut().set(self.variable.clone(), value);
+                env.borrow_mut().set(self.variable.value.clone(), value);
                 self.body.execute(env)?;
             }
             Ok(())
@@ -144,20 +147,20 @@ impl Statement for ForeachStatement {
     }
 }
 
-impl Statement for FunctionStatement {
+impl Executable for FunctionStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let name = self.inner.borrow().name.clone();
 
-        let function = DynValue::from_function(Function::new(self.clone(), env.clone()), name.clone());
+        let function = DynValue::from_function(Function::new(self.clone(), env.clone()), name.value.clone());
 
-        env.borrow_mut().set(name, function);
+        env.borrow_mut().set(name.value, function);
 
         Ok(())
     }
 }
 
 impl FunctionStatement {
-    pub fn new(name: String, parameters: Vec<String>, body: STMT) -> Self {
+    pub fn new(name: Token, parameters: Vec<Token>, body: STMT) -> Self {
         Self {
             inner: Rc::new(RefCell::new(FunctionStatementInner {
                 name,
@@ -169,7 +172,7 @@ impl FunctionStatement {
 }
 
 
-impl Statement for ReturnStatement {
+impl Executable for ReturnStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         Err(Traceback::from_return_value(
             if let Some(expr) = &self.value {
@@ -188,3 +191,15 @@ impl Clone for FunctionStatement {
         }
     }
 }
+
+impl Statement for FunctionStatement {}
+impl Statement for ExpressionStatement {}
+impl Statement for IfStatement {}
+impl Statement for PrintStatement {}
+impl Statement for VarStatement {}
+impl Statement for BlockStatement {}
+impl Statement for WhileStatement {}
+impl Statement for ForeachStatement {}
+impl Statement for ReturnStatement {}
+
+    

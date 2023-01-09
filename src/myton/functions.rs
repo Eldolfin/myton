@@ -34,7 +34,7 @@ impl Callable for Function {
         let function_env = make_env_enclosed(self.closure.clone());
 
         for (param, value) in self.statement.inner.as_ref().borrow().parameters.iter().zip(args) {
-            function_env.borrow_mut().set(param.clone(), value);
+            function_env.borrow_mut().set(param.value.clone(), value);
         }
         
 
