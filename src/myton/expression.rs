@@ -177,7 +177,7 @@ impl Literal {
 
 impl Evaluable for Variable {
     fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
-        match env.borrow().get(self.token.value.to_string()) {
+        match env.borrow().get_from_variable(self) {
             Some(value) => Ok(value),
             None => Err(Traceback { 
                 message: Some(format!("Undefined variable '{}'", self.token.value)),

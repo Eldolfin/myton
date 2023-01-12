@@ -1,0 +1,10 @@
+def fibo(n):
+  cur = 1
+  next = 1
+  while n > 0:
+    next = cur + next
+    cur = next - cur
+    n = n - 1
+  return cur
+for i in [10, 20, 42]:
+  print(fibo(i))

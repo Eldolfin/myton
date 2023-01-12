@@ -4,6 +4,6 @@ def fibo(n):
   else:
     return fibo(n-1) + fibo(n-2)
 before = clock()
-print(fibo(30))
+print(fibo(32))
 after = clock()
-print("Time taken: "+(after - before)+"seconds")
+print("Time taken: "+(after - before)+"s")

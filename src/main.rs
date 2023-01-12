@@ -1,6 +1,6 @@
 mod myton;
 
-use crate::myton::Interpreter;
+pub use crate::myton::Interpreter;
 use std::env::args;
 
 fn main(){

@@ -10,3 +10,6 @@ regex = "1.7.0"
 strum= "0.24.1"
 strum_macros = "0.24.1"
 termion = "*"
+
+[dev-dependencies]
+walkdir = "2"

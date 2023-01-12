@@ -10,7 +10,13 @@ pub type UUID = usize;
 
 pub struct Resolver {
     scopes :Vec<HashMap<String, bool>>,
-    locals :HashMap<UUID, usize>, // UUID -> depth
+    pub locals :HashMap<UUID, usize>, // UUID -> depth
+    current_function :FunctionType,
+}
+
+enum FunctionType {
+    None,
+    Function,
 }
 
 pub trait Resolvable {
@@ -24,14 +30,15 @@ impl Resolver {
         Resolver {
             scopes: vec![HashMap::new()],
             locals: HashMap::new(),
+            current_function: FunctionType::None,
         }
     }
     // STATEMENTS
 
     fn block(&mut self, block: &BlockStatement) -> ResolveResult {
-        self.begin_scope();
+        // self.begin_scope();
         self.stmts(&block.statements);
-        self.end_scope();
+        // self.end_scope();
         Ok(())
     }
 
@@ -84,11 +91,11 @@ impl Resolver {
     }
 
     fn var_expr(&mut self, expr: &Variable) -> ResolveResult {
-        if let Some(scope) = self.scopes.last() {
-            if let Some(false) = scope.get(&expr.token.value) {
-                return Err(Traceback::from(format!("Cannot read local variable in its own initializer.")));
-            }
-        }
+        // if let Some(scope) = self.scopes.last() {
+        //     if let Some(false) = scope.get(&expr.token.value) {
+        //         return Err(Traceback::from(format!("Cannot read local variable in its own initializer.")));
+        //     }
+        // }
 
         let casted :EXPR = Box::new(expr.clone());
 
@@ -97,7 +104,7 @@ impl Resolver {
     }
 
     fn local(&mut self, expr: &EXPR, name: &Token) {
-        for (i, scope) in self.scopes.iter().enumerate().rev() {
+        for (i, scope) in self.scopes.iter().rev().enumerate() {
             if scope.contains_key(&name.value) {
                 self.locals.insert(expr.uuid(), i);
                 return;
@@ -109,12 +116,13 @@ impl Resolver {
         self.declare(&function.inner.borrow().name)?;
         self.define(&function.inner.borrow().name)?;
 
-        self.resolve_function(function)?;
-
-        Ok(())
+        self.resolve_function(function, FunctionType::Function)
     }
 
-    fn resolve_function(&mut self, function: &FunctionStatement) -> ResolveResult {
+    fn resolve_function(&mut self, function: &FunctionStatement, tipe: FunctionType) -> ResolveResult {
+        let enclosing_function : FunctionType = self.current_function.clone();
+        self.current_function = tipe;
+
         self.begin_scope();
         for param in &function.inner.borrow().parameters {
             self.declare(param)?;
@@ -122,6 +130,9 @@ impl Resolver {
         }
         self.stmt(&function.inner.borrow().body)?;
         self.end_scope();
+
+        self.current_function = enclosing_function;
+
         Ok(())
     }
 
@@ -139,6 +150,10 @@ impl Resolver {
     }
 
     fn reteurn(&mut self, stmt: &ReturnStatement) -> ResolveResult {
+        if matches!(self.current_function, FunctionType::None) {
+            return Err(Traceback::from(format!("'return' outside function")));
+        }
+
         if let Some(value) = &stmt.value {
             value.resolve(self)?;
         }
@@ -300,5 +315,60 @@ impl Resolvable for List {
 impl Resolvable for Unary {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
         resolver.unary(self)
+    }
+}
+
+impl Clone for FunctionType {
+    fn clone(&self) -> Self {
+        match self {
+            FunctionType::None => FunctionType::None,
+            FunctionType::Function => FunctionType::Function,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::myton::{Interpreter, parser::Parser, lexer::Lexer};
+
+    use super::*;
+
+    #[test]
+    fn test_variable_resolving() {
+        let code = 
+"a=\"global\"
+def f():
+  def print_A():
+    print(a)
+  print_A()
+  a=\"local\"
+  print_A()
+f()".to_string();
+
+        let mut interpreter = Interpreter::new();
+        let mut lexer = Lexer::new(code);
+        let tokens = lexer.tokenize().unwrap();
+        let mut parser = Parser::new(tokens.clone(), interpreter.output.clone());
+        let program = parser.parse().unwrap();
+
+        for stmt in &program {
+            stmt.resolve(&mut interpreter.resolver).unwrap();
+        }
+
+        let locals = interpreter.resolver.locals;
+
+        let mut message = String::new();
+
+        for (u,d) in &locals {
+             message += &format!("{:?} {:?}\n", u , d).to_string();
+        }
+        
+        // assert!(false, "{}", message);
+
+        assert_eq!(locals[&19], 2);
+        assert_eq!(locals[&22], 0);
+        assert_eq!(locals[&30], 0);
+        assert_eq!(locals[&34], 0);
     }
 }

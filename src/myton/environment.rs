@@ -1,4 +1,8 @@
 use std::collections::HashMap;
+use super::Interpreter;
+
+use super::expression::{Variable, Expression};
+use super::resolver::UUID;
 use super::types::DynValue;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -6,8 +10,9 @@ use std::cell::RefCell;
 pub type Env = Rc<RefCell<Environment>>;
 
 pub struct Environment {
-    enclosing: Option<Env>,
     values: HashMap<String, DynValue>,
+    enclosing: Option<Env>,
+    resolved_locals: Option<HashMap<UUID, usize>>
 }
 
 impl Environment {
@@ -15,13 +20,15 @@ impl Environment {
         Environment {
             values: HashMap::new(),
             enclosing: None,
+            resolved_locals: None,
         }
     }
 
     fn new_enclosed(enclosing: Env) -> Self {
         Environment {
             values: HashMap::new(),
-            enclosing: Some(enclosing),
+            enclosing: Some(enclosing.clone()),
+            resolved_locals: enclosing.borrow().resolved_locals.clone(),
         }
     }
 
@@ -34,15 +41,22 @@ impl Environment {
             None
         }
     }
-
-    pub fn set(&mut self, name: String, value: DynValue) {
-        if let Some(enclosing) = &self.enclosing {
-            if enclosing.borrow_mut().get(name.clone()).is_some() {
-                enclosing.borrow_mut().set(name, value);
-                return;
+    
+    // tries to get the value from the resolved
+    // locals, if it fails, it tries to get it
+    // with the name, with get
+    pub fn get_from_variable(&self, variable: &Variable) -> Option<DynValue> {
+        if let Some(locals) = &self.resolved_locals {
+            if let Some(distance) = locals.get(&variable.uuid()) {
+                if let Some(enclosing) = self.ancestor(*distance) {
+                    return enclosing.borrow_mut().get(variable.token.value.to_string());
+                }
             }
         }
+        self.get(variable.token.value.to_string())
+    }
 
+    pub fn set(&mut self, name: String, value: DynValue) {
         self.values.insert(name, value);
     }
 
@@ -65,6 +79,26 @@ impl Environment {
     pub fn set_env_var(&mut self, var: EnvVariable, value: DynValue) {
         let name = var.get_name();
         self.set_global(name, value);
+    }
+
+    pub fn ancestor(&self, distance:usize) -> Option<Env> {
+        if distance == 0 {
+            None
+        } else {
+            if let Some(env) = self.enclosing.clone() {
+                if distance == 1 {
+                    Some(env)
+                } else {
+                    env.borrow_mut().ancestor(distance - 1)
+                }
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn set_resolved_locals(&mut self, resolved_locals: HashMap<UUID, usize>) {
+        self.resolved_locals = Some(resolved_locals);
     }
 }
 
@@ -90,6 +124,8 @@ impl EnvVariable {
 
 #[cfg(test)]
 mod tests {
+    use crate::myton::lexer::token::{Token, TokenKind};
+
     use super::*;
     use super::super::types::{DynValue, TypeKind};
     use super::super::native_functions::native_clock;
@@ -135,8 +171,8 @@ mod tests {
         global.borrow_mut().set("a".to_string(), DynValue::from(1.0));
         global.borrow_mut().set("c".to_string(), DynValue::from(2.0));
 
-        borrowed_local.set("b".to_string(), DynValue::from(2.0));
         borrowed_local.set("a".to_string(), DynValue::from(3.0));
+        borrowed_local.set("b".to_string(), DynValue::from(2.0));
 
         assert!(borrowed_local.get("a".to_string()).is_some());
         assert!(borrowed_local.get("a".to_string()).unwrap().is_number());
@@ -155,7 +191,7 @@ mod tests {
         let borrowed_global = global.borrow_mut();
         assert!(borrowed_global.get("a".to_string()).is_some());
         assert!(borrowed_global.get("a".to_string()).unwrap().is_number());
-        assert_eq!(borrowed_global.get("a".to_string()).unwrap().as_number(), 3.0);
+        assert_eq!(borrowed_global.get("a".to_string()).unwrap().as_number(), 1.0);
     }
 
     #[test]
@@ -173,5 +209,59 @@ mod tests {
         borrowed_enclosed_env.set_env_var(EnvVariable::NewLines, DynValue::from(2.0));
 
         assert!(env.borrow_mut().get_env_var(EnvVariable::NewLines).as_number() == 2.0);
+    }
+
+    #[test]
+    fn test_ancestor() {
+        let env = make_env();
+        let local = make_env_enclosed(env.clone());
+        let local2 = make_env_enclosed(local.clone());
+
+        env.borrow_mut().set("a".to_string(), DynValue::from(1.0));
+        local.borrow_mut().set("b".to_string(), DynValue::from(2.0));
+        local.borrow_mut().set("a".to_string(), DynValue::from(3.0));
+
+        assert!(env.borrow().ancestor(0).is_none());
+        assert!(env.borrow().ancestor(1).is_none());
+        assert_eq!(env.borrow().get("a".to_string()).unwrap().as_number(), 1.0);
+
+        assert!(local.borrow().ancestor(0).is_none());
+        assert!(local.borrow().ancestor(1).is_some());
+        assert!(local.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).is_some());
+        assert_eq!(local.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).unwrap().as_number(), 1.0);
+        assert!(local.borrow().ancestor(2).is_none());
+
+        assert!(local2.borrow().ancestor(0).is_none());
+        assert!(local2.borrow().ancestor(1).is_some());
+        assert!(local2.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).is_some());
+        assert_eq!(local2.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).unwrap().as_number(), 3.0);
+        assert!(local2.borrow().ancestor(1).unwrap().borrow().get("b".to_string()).is_some());
+        assert!(local2.borrow().ancestor(2).is_some());
+        assert!(local2.borrow().ancestor(2).unwrap().borrow().get("a".to_string()).is_some());
+        assert_eq!(local2.borrow().ancestor(2).unwrap().borrow().get("a".to_string()).unwrap().as_number(), 1.0);
+        assert!(local2.borrow().ancestor(2).unwrap().borrow().get("b".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_get_from_variable() {
+        let env = make_env();
+        let token = Token {
+            kind: TokenKind::Identifier,
+            value: "a".to_string(),
+            ..Default::default()
+        };
+        let var = Variable::new(token, 0);
+
+        let resolved_locals = HashMap::from_iter(vec![(0, 1)].into_iter());
+
+        env.borrow_mut().set_resolved_locals(resolved_locals);
+
+        let local = make_env_enclosed(env.clone());
+
+        local.borrow_mut().set("a".to_string(), DynValue::from(1.0));
+        env.borrow_mut().set("a".to_string(), DynValue::from(2.0));
+
+        assert!(local.borrow().get_from_variable(&var).is_some());
+        assert_eq!(local.borrow().get_from_variable(&var).unwrap().as_number(), 2.0);
     }
 }
