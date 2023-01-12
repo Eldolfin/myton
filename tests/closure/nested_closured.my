@@ -1,0 +1,18 @@
+f=None
+def f1():
+  a="a"
+  def f2():
+    b="b"
+    def f3():
+      c="c"
+      def f4():
+        print(a)
+        print(b)
+        print(c)
+      global f
+      f = f4
+    f3()
+  f2()
+f1()
+
+f()

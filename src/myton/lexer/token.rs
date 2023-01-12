@@ -21,7 +21,7 @@ pub enum TokenKind {
 
     And, Class, Else, False, Def, For, If, Nil, Or, 
     Print, Return, Super, Selph, True, While, Pass,
-    In,
+    In, Break, Continue, Global, Nonlocal,
 
     Comment,
     Space,
@@ -98,6 +98,11 @@ impl TokenKind {
             TokenKind::While => r"while",
             TokenKind::Pass => r"pass",
             TokenKind::In => r"in",
+            TokenKind::Break => r"break",
+            TokenKind::Continue => r"continue",
+            TokenKind::Global => r"global",
+            TokenKind::Nonlocal => r"nonlocal",
+
         }
     }
 }

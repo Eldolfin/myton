@@ -80,6 +80,10 @@ impl Parser {
             self.print_statement()
         } else if self.match_token(vec![TokenKind::Return]) {
             self.return_statement()
+        } else if self.match_token(vec![TokenKind::Global]) {
+            self.global_statement()
+        } else if self.match_token(vec![TokenKind::Nonlocal]) {
+            self.nonlocal_statement()
         } else {
             self.expression_statement()
         }
@@ -164,6 +168,26 @@ impl Parser {
 
     fn expression(&mut self) -> Result<EXPR, Traceback> {
         self.or()
+    }
+
+    fn global_statement(&mut self) -> Result<STMT, Traceback> {
+        let mut names = Vec::new();
+        while {
+            names.push(self.consume(TokenKind::Identifier, "Expect identifier after 'global'")?);
+            self.match_token(vec![TokenKind::Comma])
+        } {}
+        self.consume(TokenKind::Newline, "Expect newline after global statement.")?;
+        Ok(Box::new(GlobalStatement { names }))
+    }
+
+    fn nonlocal_statement(&mut self) -> Result<STMT, Traceback> {
+        let mut names = Vec::new();
+        while {
+            names.push(self.consume(TokenKind::Identifier, "Expect identifier after 'nonlocal'")?);
+            self.match_token(vec![TokenKind::Comma])
+        } {}
+        self.consume(TokenKind::Newline, "Expect newline after nonlocal statement.")?;
+        Ok(Box::new(NonlocalStatement { names }))
     }
 
     fn or(&mut self) -> Result<EXPR, Traceback> {
@@ -351,6 +375,14 @@ impl Parser {
 
 
     fn consume(&mut self, token_type: TokenKind, message: &str) -> Result<Token, Traceback> {
+        // special case to allow multiple newlines
+        if token_type == TokenKind::Newline {
+            while self.check(TokenKind::Newline) {
+                self.advance();
+            }
+            return Ok(self.previous());
+        }
+
         if self.check(token_type) {
             return Ok(self.advance());
         }

@@ -37,7 +37,7 @@ impl Resolver {
 
     fn block(&mut self, block: &BlockStatement) -> ResolveResult {
         // self.begin_scope();
-        self.stmts(&block.statements);
+        self.stmts(&block.statements)?;
         // self.end_scope();
         Ok(())
     }
@@ -174,6 +174,13 @@ impl Resolver {
         Ok(())
     }
 
+    fn global(&mut self, _: &GlobalStatement) -> ResolveResult {
+        Ok(())
+    }
+
+    fn nonlocal(&mut self, _: &NonlocalStatement) -> ResolveResult {
+        Ok(())
+    }
 
 
     // EXPRESSIONS
@@ -273,6 +280,18 @@ impl Resolvable for IfStatement {
     }
 }
 
+impl Resolvable for GlobalStatement {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.global(self)
+    }
+}
+
+impl Resolvable for NonlocalStatement {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.nonlocal(self)
+    }
+}
+
 // Expressions
 impl Resolvable for Binary {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
@@ -331,8 +350,6 @@ impl Clone for FunctionType {
 #[cfg(test)]
 mod tests {
     use crate::myton::{Interpreter, parser::Parser, lexer::Lexer};
-
-    use super::*;
 
     #[test]
     fn test_variable_resolving() {

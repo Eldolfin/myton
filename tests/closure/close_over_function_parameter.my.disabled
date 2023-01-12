@@ -1,0 +1,10 @@
+f = None
+
+def foo(param):
+    def f_():
+	print(param)
+    global f
+    f = f_
+
+foo("param")
+f() # expect: param

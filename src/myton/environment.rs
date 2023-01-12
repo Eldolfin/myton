@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use super::Interpreter;
 
 use super::expression::{Variable, Expression};
 use super::resolver::UUID;
@@ -12,7 +11,9 @@ pub type Env = Rc<RefCell<Environment>>;
 pub struct Environment {
     values: HashMap<String, DynValue>,
     enclosing: Option<Env>,
-    resolved_locals: Option<HashMap<UUID, usize>>
+    resolved_locals: Option<HashMap<UUID, usize>>,
+    globals :Vec<String>,
+    non_locals :Vec<String>,
 }
 
 impl Environment {
@@ -21,6 +22,8 @@ impl Environment {
             values: HashMap::new(),
             enclosing: None,
             resolved_locals: None,
+            globals: Vec::new(),
+            non_locals: Vec::new(),
         }
     }
 
@@ -29,6 +32,8 @@ impl Environment {
             values: HashMap::new(),
             enclosing: Some(enclosing.clone()),
             resolved_locals: enclosing.borrow().resolved_locals.clone(),
+            globals: enclosing.borrow().globals.clone(),
+            non_locals: enclosing.borrow().non_locals.clone(),
         }
     }
 
@@ -57,12 +62,20 @@ impl Environment {
     }
 
     pub fn set(&mut self, name: String, value: DynValue) {
-        self.values.insert(name, value);
+        if self.globals.contains(&name) {
+            self.set_global_variable(name, value);
+        } else if self.non_locals.contains(&name) {
+            if let Some(enclosing) = &self.enclosing {
+                enclosing.borrow_mut().set(name, value);
+            }
+        } else {
+            self.values.insert(name, value);
+        }
     }
 
-    pub fn set_global(&mut self, name: String, value: DynValue) {
+    fn set_global_variable(&mut self, name: String, value: DynValue) {
         if let Some(enclosing) = &self.enclosing {
-            enclosing.borrow_mut().set_global(name, value);
+            enclosing.borrow_mut().set_global_variable(name, value);
         } else {
             self.set(name, value);
         }
@@ -78,7 +91,7 @@ impl Environment {
 
     pub fn set_env_var(&mut self, var: EnvVariable, value: DynValue) {
         let name = var.get_name();
-        self.set_global(name, value);
+        self.set_global_variable(name, value);
     }
 
     pub fn ancestor(&self, distance:usize) -> Option<Env> {
@@ -99,6 +112,14 @@ impl Environment {
 
     pub fn set_resolved_locals(&mut self, resolved_locals: HashMap<UUID, usize>) {
         self.resolved_locals = Some(resolved_locals);
+    }
+
+    pub fn set_global(&mut self, name: String) {
+        self.globals.push(name);
+    }
+
+    pub fn set_nonlocal(&mut self, name: String) {
+        self.non_locals.push(name);
     }
 }
 

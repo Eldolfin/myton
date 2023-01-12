@@ -33,8 +33,6 @@ pub struct Interpreter {
     resolver: Resolver,
 }
 
-const DEBUG_LEXER: bool = false;
-
 impl Interpreter {
     pub fn new() -> Interpreter {
         Self::new_with_output(Rc::new(RefCell::new(Box::new(stdout()))))
@@ -58,11 +56,9 @@ impl Interpreter {
         if let Ok(mut file) = std::fs::File::open(path) {
             let mut contents = String::new();
             file.read_to_string(&mut contents).unwrap();
-            
-            self.debug_lexer(contents.clone());
 
             if let Err(e) = self.run(contents) {
-                print!("\x1b[31m{}\x1b[0m", e);
+                print!("{}", e);
             }
         } else {
             println!("Could not open file {}", path);
@@ -71,11 +67,9 @@ impl Interpreter {
 
     pub fn run_repl(&mut self) {
         let mut repl = Repl::new();
-        repl.welcome_prompt();
         
         while let Some(source) = repl.next() {
             self.environment.borrow_mut().set_env_var(EnvVariable::NewLines, DynValue::from(0));
-            self.debug_lexer(source.clone());
 
             if let Err(result) = self.run(source.clone()) {
                 repl.printerr(result);
@@ -84,16 +78,6 @@ impl Interpreter {
                 repl.skiplines(skip);
             }
         }
-    }
-
-    fn format_tokens(&self, source: String) -> String {
-        let mut s = String::new();
-        if let Ok(tokens) = Lexer::new(source).tokenize(){
-            for token in tokens {
-                s.push_str(&format!("{:?}\n", token));
-            }
-        }
-        s
     }
 
     fn run(&mut self, source: String) -> Result<(), String> {
@@ -122,16 +106,6 @@ impl Interpreter {
         }
 
         Ok(())
-    }
-
-    fn debug_lexer(&self, contents: String) {
-        if DEBUG_LEXER {
-            println!("{}", self.format_tokens(contents));
-        }
-    }
-
-    fn run_file_to_string(){
-
     }
 }
 
@@ -175,16 +149,6 @@ mod tests {
 
     #[test]
     fn test_run() {
-test_run_case(
-"broken closure code",
-"a=\"global\"
-def f():
-  def print_A():
-    print(a)
-  print_A()
-  a=\"local\"
-  print_A()
-f()", "global\nglobal\n");
         test_run_case("simple print", "print 1", "1\n");
 
         test_run_case("simple math", "print 1 + 2", "3\n");
@@ -247,20 +211,29 @@ test_run_case(
   g()
 f()", "1\n");
 
-// test_run_case(
-// "nested function, with closure environment and return function",
-// "def f():
-//   i=0
-//   def count():
-//     i=i+1
-//     print(i)
-//   return count
-// c = f()
-// c()
-// c()
-// c()", "1\n2\n3\n");
+test_run_case(
+"nested function, with closure environment and return function",
+"def f():
+  i=0
+  def count():
+    nonlocal i
+    i=i+1
+    print(i)
+  return count
+c = f()
+c()
+c()
+c()", "1\n2\n3\n");
 
-
-
+test_run_case(
+"broken closure code",
+"a=\"global\"
+def f():
+  def print_A():
+    print(a)
+  print_A()
+  a=\"local\"
+  print_A()
+f()", "global\nglobal\n");
     }
 }

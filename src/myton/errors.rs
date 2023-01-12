@@ -35,7 +35,11 @@ pub fn report_trace(trace: traceback::Traceback) -> String {
 
     set_had_error();
 
-    s
+    to_red(&s)
+}
+
+pub fn to_red(s: &str) -> String {
+    format!("\x1b[31m{}\x1b[0m", s)
 }
 
 fn count_digits(n: usize) -> usize {

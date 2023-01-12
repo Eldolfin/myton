@@ -1,0 +1,23 @@
+print True == True    # expect: True
+print True == False   # expect: False
+print False == True   # expect: False
+print False == False  # expect: True
+
+# Not equal to other types.
+print True == 1        # expect: True
+print False == 0       # expect: True
+print True == "True"   # expect: False
+print False == "False" # expect: False
+print False == ""      # expect: False
+
+print True != True    # expect: False
+print True != False   # expect: True
+print False != True   # expect: True
+print False != False  # expect: False
+
+# Not equal to other types.
+print True != 1        # expect: False
+print False != 0       # expect: False
+print True != "True"   # expect: True
+print False != "False" # expect: True
+print False != ""      # expect: True

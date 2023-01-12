@@ -1,0 +1,29 @@
+def f():
+  i=0
+  def count():
+    nonlocal i
+    i=i+1
+    print(i)
+  return count
+c = f()
+c() #1
+c() #2
+c() #3
+c=f()
+c() #1
+c() #2
+
+j=0
+def g():
+  nonlocal j
+  def count():
+    j=j+1
+    print(j)
+  return count
+
+c = g()
+c() #1
+c() #2
+c = g()
+c() #3
+c() #4

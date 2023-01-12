@@ -1,0 +1,16 @@
+print 2 + 3 * 4 # expect: 14
+print 20 - 3 * 4 # expect: 8
+print 2 + 6 / 3 # expect: 4
+print 2 - 6 / 3 # expect: 0
+
+print False == 2 < 1 # expect: true
+print False == 1 > 2 # expect: true
+print False == 2 <= 1 # expect: true
+print False == 1 >= 2 # expect: true
+
+print 1 - 1 # expect: 0
+print 1 -1  # expect: 0
+print 1- 1  # expect: 0
+print 1-1   # expect: 0
+
+print (2 * (6 - (2 + 2))) # expect: 4

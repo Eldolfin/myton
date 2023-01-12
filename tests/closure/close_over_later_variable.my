@@ -1,0 +1,8 @@
+def f():
+  a = "a"
+  b = "b"
+  def g():
+    print(b)
+    print(a)
+  g()
+f()

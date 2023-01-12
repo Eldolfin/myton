@@ -1,0 +1,10 @@
+def f():
+  i=0
+  def count():
+    i=i+1
+    print(i)
+  return count
+c = f()
+c()
+c()
+c()

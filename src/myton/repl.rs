@@ -16,13 +16,15 @@ pub struct Repl {
 
 impl Repl {
     pub fn new() -> Repl {
-        Repl {
+        let mut res = Repl {
             buffer: Buffer::new(),
             cursor: (1, 1),
             term_size: termion::terminal_size().unwrap(),
             input_history: History::new(),
             stdout: stdout().into_raw_mode().unwrap(),
-        }
+        };
+        res.welcome_prompt();
+        res
     }
 
     pub fn welcome_prompt(&mut self) {

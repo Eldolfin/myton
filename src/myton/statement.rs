@@ -70,6 +70,14 @@ pub struct ReturnStatement {
     pub value: Option<EXPR>,
 }
 
+pub struct GlobalStatement {
+    pub names: Vec<Token>,
+}
+
+pub struct NonlocalStatement {
+    pub names: Vec<Token>,
+}
+
 impl Executable for ExpressionStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         self.expression.eval(env)?;
@@ -192,6 +200,24 @@ impl Clone for FunctionStatement {
     }
 }
 
+impl Executable for GlobalStatement {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
+        for name in &self.names {
+            env.borrow_mut().set_global(name.value.clone());
+        }
+        Ok(())
+    }
+}
+
+impl Executable for NonlocalStatement {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
+        for name in &self.names {
+            env.borrow_mut().set_nonlocal(name.value.clone());
+        }
+        Ok(())
+    }
+}
+
 impl Statement for FunctionStatement {}
 impl Statement for ExpressionStatement {}
 impl Statement for IfStatement {}
@@ -201,5 +227,5 @@ impl Statement for BlockStatement {}
 impl Statement for WhileStatement {}
 impl Statement for ForeachStatement {}
 impl Statement for ReturnStatement {}
-
-    
+impl Statement for GlobalStatement {}
+impl Statement for NonlocalStatement {}

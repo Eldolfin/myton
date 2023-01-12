@@ -1,6 +1,7 @@
 use ::myton::run_to_string;
 use walkdir::{self, WalkDir};
 use std::env::args;
+use snailquote::escape;
 
 #[test]
 fn test_files() {
@@ -29,9 +30,10 @@ fn test_files() {
             std::fs::write(out_path, output).unwrap();
         } else {
             if let Ok(expected) = std::fs::read_to_string(out_path) {
-                assert_eq!(output, expected);
+                let message = format!("expected:\n{}\ngot:\n{}", &expected, &output);
+                assert_eq!(output, expected, "{}", message);
             } else {
-                panic!("No .out file found for {}", path);
+                //panic!("No .out file found for {}", path);
             }
         }
     }

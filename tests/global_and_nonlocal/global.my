@@ -1,0 +1,11 @@
+i=0
+def f():
+  def count():
+    global i
+    i=i+1
+    print(i)
+  return count
+c = f()
+c()
+c()
+c()

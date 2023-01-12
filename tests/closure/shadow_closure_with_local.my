@@ -1,0 +1,7 @@
+foo = "closure"
+def f():
+  print(foo)
+  foo = "shadow"
+  print(foo)
+print(foo)
+f()
