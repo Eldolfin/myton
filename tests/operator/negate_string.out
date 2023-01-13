@@ -1,0 +1,7 @@
+[31merror[error]: bad operand type for unary -: 'str'
+----- Traceback -----
+  ┌─ <unknown>:1:7
+  | 
+1 | print(-"s") # error
+  |        ^
+[0m

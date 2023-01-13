@@ -1,0 +1,6 @@
+def f():
+  while True:
+    i = "i"
+    return i
+
+print(f())

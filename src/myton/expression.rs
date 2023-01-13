@@ -267,6 +267,10 @@ impl Evaluable for Binary {
                 match left.tipe {
                     TypeKind::Number => Ok(DynValue::from(left.as_number() * right.as_number())),
                     TypeKind::Stringue => Ok(DynValue::from(left.as_string().repeat(right.as_number() as usize))),
+                    TypeKind::List => {let list = left.as_list().unwrap();
+                        let num = right.as_number() as usize;
+                        Ok(DynValue::from(list.iter().cycle().take(list.len() * num).cloned().collect::<Vec<DynValue>>()))
+                    }
                     _ => panic!("Invalid left type for * operator"),
                 }
             },

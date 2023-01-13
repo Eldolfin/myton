@@ -1,0 +1,7 @@
+[31merror[error]: Expected 2 arguments but got 1
+----- Traceback -----
+  ┌─ <unknown>:3:4
+  |   pass
+3 | f(1)
+  |     ^
+[0m

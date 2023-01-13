@@ -1,0 +1,10 @@
+def f():
+  while True:
+    i = "i"
+    def g():
+      print(i)
+    return g
+
+
+h = f()
+h() # expect: "i"

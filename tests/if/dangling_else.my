@@ -1,0 +1,12 @@
+# A dangling else binds to the right-most if.
+if True:
+  if False:
+    print "bad"
+  else:
+    print "good" # expect: good
+if False:
+  if True:
+    print "bad" 
+  else:
+    print "bad"
+

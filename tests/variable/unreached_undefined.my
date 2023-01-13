@@ -1,0 +1,3 @@
+if False:
+  print(undefined)
+print("ok")

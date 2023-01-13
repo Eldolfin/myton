@@ -1,0 +1,6 @@
+a="global"
+def f():
+  a="shadow"
+  print(a) # expect: shadow
+f()
+print(a) # expect: global

@@ -1,0 +1,13 @@
+print(123 + 456) # 579
+
+print("str" + "ing") # string
+
+print("str" + 123) # str123
+
+print(123 + "str") # 123str
+
+print("123" + "456") # 579
+
+print("123" + 456) # 579
+
+print(123 + "456") # 579

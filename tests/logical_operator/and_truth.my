@@ -1,0 +1,8 @@
+# False and nil are false.
+print(False and "bad")  # expect: False
+print(None and "bad")  # expect: None
+
+# Everything else is true.
+print(True and "ok")  # expect: ok
+print(0 and "ok")  # expect: 0
+print("" and "ok")  # expect: ""

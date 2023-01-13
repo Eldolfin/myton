@@ -1,0 +1,14 @@
+print(None == None) # expect: True
+
+print(True == True) # expect: True
+print(True == False) # expect: False
+
+print(1 == 1) # expect: True
+print(1 == 2) # expect: False
+
+print("str" == "str") # expect: True
+print("str" == "ing") # expect: False
+
+print(None == False) # expect: False
+print(False == 0) # expect: True
+print(0 == "0") # expect: True

@@ -1,0 +1,8 @@
+a = "a"
+print a # expect: a
+b = a + " b"
+print b # expect: a b
+c = a + " c"
+print c # expect: a c
+d = b + " d"
+print d # expect: a b d

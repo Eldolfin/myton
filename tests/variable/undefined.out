@@ -1,0 +1,7 @@
+[31merror[error]: Undefined variable 'undefined'
+----- Traceback -----
+  ┌─ <unknown>:1:15
+  | 
+1 | print(undefined)
+  |                ^
+[0m

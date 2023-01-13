@@ -1,0 +1,18 @@
+if False:
+  print "bad"
+else:
+  print "false" # expect: false
+
+if None:
+  print "bad"
+else:
+  print "nil" # expect: nil
+
+if True:
+  print True # expect: true
+
+if 0:
+  print 0 # expect nothing
+
+if "":
+  print "empty" # expect nothing

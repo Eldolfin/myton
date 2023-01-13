@@ -1,0 +1,8 @@
+# False and nil are False.
+print False or "ok" # expect: ok
+print None or "ok" # expect: ok
+
+# Everything else is True.
+print True or "ok" # expect: True
+print 0 or "ok" # expect: "ok"
+print "s" or "ok" # expect: s

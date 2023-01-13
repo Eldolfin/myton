@@ -1,0 +1,92 @@
+print(1 < 2) # expect: True
+print(2 < 2) # expect: False
+print(2 < 1) # expect: False
+
+print(1 <= 2) # expect: True
+print(2 <= 2) # expect: True
+print(2 <= 1) # expect: False
+
+print(1 > 2) # expect: False
+print(2 > 2) # expect: False
+print(2 > 1) # expect: True
+
+print(1 >= 2) # expect: False
+print(2 >= 2) # expect: True
+print(2 >= 1) # expect: True
+
+# Zero and negative zero compare the same.
+print(0 < -0) # expect: False
+print(-0 < 0) # expect: False
+print(0 > -0) # expect: False
+print(-0 > 0) # expect: False
+print(0 <= -0) # expect: True
+print(-0 <= 0) # expect: True
+print(0 >= -0) # expect: True
+print(-0 >= 0) # expect: True
+
+# NaN compares to nothing.
+nan = 0/0
+print(nan < 0) # expect: False
+print(nan < 1) # expect: False
+print(nan < nan) # expect: False
+print(nan <= 0) # expect: False
+print(nan <= 1) # expect: False
+print(nan <= nan) # expect: False
+print(nan > 0) # expect: False
+print(nan > 1) # expect: False
+print(nan > nan) # expect: False
+print(nan >= 0) # expect: False
+print(nan >= 1) # expect: False
+print(nan >= nan) # expect: False
+
+# bools compare to 0 and 1.
+print(True < False) # expect: False
+print(True < True) # expect: False
+print(True < 0) # expect: False
+print(True < 1) # expect: False
+print(True < 2) # expect: True
+print(False < False) # expect: False
+print(False < True) # expect: True
+print(False < 0) # expect: False
+print(False < 1) # expect: True
+print(False < 2) # expect: True
+
+# Strings compare lexicographically.
+print("a" < "b") # expect: True
+print("a" < "a") # expect: False
+print("b" < "a") # expect: False
+print("a" <= "a") # expect: True
+print("a" <= "b") # expect: True
+print("b" <= "a") # expect: False
+print("a" > "b") # expect: False
+print("a" > "a") # expect: False
+print("b" > "a") # expect: True
+print("a" >= "a") # expect: True
+print("a" >= "b") # expect: False
+print("b" >= "a") # expect: True
+print("a" < "aa") # expect: True
+print("aa" < "b") # expect: True
+print("a" < "ab") # expect: True
+print("ab" < "b") # expect: True
+print("a" < "ba") # expect: True
+print("ba" < "b") # expect: False
+
+# Lists compare lexicographically.
+print([1] < [2]) # expect: True
+print([1] < [1]) # expect: False
+print([2] < [1]) # expect: False
+print([1] <= [1]) # expect: True
+print([1] <= [2]) # expect: True
+print([2] <= [1]) # expect: False
+print([1] > [2]) # expect: False
+print([1] > [1]) # expect: False
+print([2] > [1]) # expect: True
+print([1] >= [1]) # expect: True
+print([1] >= [2]) # expect: False
+print([2] >= [1]) # expect: True
+print([1] < [1, 2]) # expect: True
+print([1, 2] < [2]) # expect: True
+print([1] < [1, 3]) # expect: True
+print([1, 3] < [2]) # expect: True
+print([1] < [2, 2]) # expect: True
+print([2, 2] < [2]) # expect: False

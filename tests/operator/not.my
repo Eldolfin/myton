@@ -1,0 +1,14 @@
+print(!True)    # expect: False
+print(!False)   # expect: True
+print(!!True)   # expect: True
+
+print(!123)     # expect: False
+print(!0)       # expect: True
+
+print(!None)    # expect: True
+
+print(!"")      # expect: True
+
+def foo():
+  pass
+print(!foo)     # expect: False

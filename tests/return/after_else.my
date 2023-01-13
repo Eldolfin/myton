@@ -1,0 +1,6 @@
+def f():
+  if False:
+    return "no"
+  else:
+    return "ok"
+print(f())

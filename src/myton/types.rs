@@ -59,6 +59,8 @@ impl PartialEq for DynValue {
     fn eq(&self, other: &Self) -> bool {
         let a = if self.tipe == TypeKind::Boolean {
             self.as_number().to_string()
+        } else if self.tipe == TypeKind::Number && self.as_number().is_nan() {
+            ("nan".to_owned() + &self.as_number().to_string()).to_string()
         } else {
             self.as_string()
         };

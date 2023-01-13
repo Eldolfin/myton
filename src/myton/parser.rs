@@ -84,6 +84,8 @@ impl Parser {
             self.global_statement()
         } else if self.match_token(vec![TokenKind::Nonlocal]) {
             self.nonlocal_statement()
+        } else if self.match_token(vec![TokenKind::Newline]) {
+            self.empty_statement()
         } else {
             self.expression_statement()
         }
@@ -293,9 +295,7 @@ impl Parser {
             return Ok(Box::new(Literal::new(self.previous(), self.current)));
         }
         if self.match_token(vec![TokenKind::Pass]) {
-            let mut token = self.previous();
-            token.kind = TokenKind::Nil;
-            return Ok(Box::new(Literal::new(token, self.current)));
+            return self.empty_expression();
         }
         if self.match_token(vec![TokenKind::LeftParen]) {
             let expr = self.expression()?;
@@ -319,6 +319,16 @@ impl Parser {
         }
 
         Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})
+    }
+
+    fn empty_expression(&mut self) -> Result<EXPR, Traceback> {
+        let mut token = self.previous();
+        token.kind = TokenKind::Nil;
+        Ok(Box::new(Literal::new(token, self.current)))
+    }
+
+    fn empty_statement(&mut self) -> Result<STMT, Traceback> {
+        Ok(Box::new(ExpressionStatement{expression:self.empty_expression()?}))
     }
 
 

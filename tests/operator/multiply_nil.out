@@ -1,0 +1,7 @@
+[31merror[error]: unsupported operand type(s) for *: 'NoneType' and 'number'
+----- Traceback -----
+  ┌─ <unknown>:1:12
+  | 
+1 | print(None * 3) # error
+  |             ^
+[0m

@@ -1,0 +1,8 @@
+print(5 * 3) # expect: 15
+print(12.34 * 0.3) # expect: 3.702
+
+# string multiplication
+print("hello" * 3) # expect: hellohellohello
+
+# list multiplication
+print([1, 2, 3] * 3) # expect: [1, 2, 3, 1, 2, 3, 1, 2, 3]

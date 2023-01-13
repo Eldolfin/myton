@@ -27,6 +27,8 @@ use std::cell::RefCell;
 use std::io::{Write, Stdout, stdout};
 use resolver::Resolver;
 
+const DEBUG_LEXER: bool = false;
+
 pub struct Interpreter {
     environment: Env,
     output: Rc<RefCell<Box<dyn MyWrite>>>,
@@ -56,6 +58,8 @@ impl Interpreter {
         if let Ok(mut file) = std::fs::File::open(path) {
             let mut contents = String::new();
             file.read_to_string(&mut contents).unwrap();
+            
+            self.debug_lexer(contents.to_string());
 
             if let Err(e) = self.run(contents) {
                 print!("{}", e);
@@ -106,6 +110,17 @@ impl Interpreter {
         }
 
         Ok(())
+    }
+
+    fn debug_lexer(&mut self, source: String) {
+        if DEBUG_LEXER {
+            let mut lexer = Lexer::new(source);
+            let tokens = lexer.tokenize().unwrap();
+
+            for token in tokens {
+                println!("{:?}", token);
+            }
+        }
     }
 }
 

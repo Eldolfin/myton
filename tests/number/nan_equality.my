@@ -1,0 +1,8 @@
+nan = 0/0
+
+print nan == 0 # expect: False
+print nan != 1 # expect: True
+
+# NaN is not equal to self.
+print nan == nan # expect: False
+print nan != nan # expect: True

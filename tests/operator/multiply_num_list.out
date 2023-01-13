@@ -1,0 +1,7 @@
+[31merror[error]: unsupported operand type(s) for *: 'number' and 'list'
+----- Traceback -----
+  ┌─ <unknown>:1:9
+  | 
+1 | print(1 * [1, 2]) # error
+  |          ^
+[0m

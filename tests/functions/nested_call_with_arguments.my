@@ -1,0 +1,12 @@
+def returnArg(arg):
+  return arg
+
+def returnFunCallWithArg(func, arg):
+  return returnArg(func)(arg)
+
+def printArg(arg):
+  print arg
+
+returnArg("hello world") # expect nothing
+
+returnFunCallWithArg(printArg, "hello world") # expect: hello world
