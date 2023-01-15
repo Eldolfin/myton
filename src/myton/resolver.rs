@@ -181,7 +181,12 @@ impl Resolver {
     fn nonlocal(&mut self, _: &NonlocalStatement) -> ResolveResult {
         Ok(())
     }
-
+    
+    fn class(&mut self, class: &ClassStatement) -> ResolveResult {
+        self.declare(&class.name)?;
+        self.define(&class.name)?;
+        Ok(())
+    }
 
     // EXPRESSIONS
     fn binary(&mut self, expr: &Binary) -> ResolveResult {
@@ -221,6 +226,10 @@ impl Resolver {
             element.resolve(self)?;
         }
         Ok(())
+    }
+
+    fn get(&mut self, expr: &Get) -> ResolveResult {
+        expr.object.resolve(self)
     }
 }
 
@@ -292,6 +301,12 @@ impl Resolvable for NonlocalStatement {
     }
 }
 
+impl Resolvable for ClassStatement {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.class(self)
+    }
+}
+
 // Expressions
 impl Resolvable for Binary {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
@@ -334,6 +349,12 @@ impl Resolvable for List {
 impl Resolvable for Unary {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
         resolver.unary(self)
+    }
+}
+
+impl Resolvable for Get {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.get(self)
     }
 }
 

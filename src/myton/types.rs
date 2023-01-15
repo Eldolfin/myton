@@ -1,5 +1,6 @@
 use super::token::{Token, TokenKind};
 use super::functions::{NativeFunction, Function, Callable};
+use super::class::{Class, Instance};
 use std::any::Any;
 use std::fmt::{Formatter, Display, Result as FmtResult};
 use std::rc::Rc;
@@ -14,6 +15,8 @@ pub enum TypeKind {
     List,
     Function,
     NativeFunction,
+    Class,
+    Instance,
 }
 
 #[derive(Debug)]
@@ -44,6 +47,8 @@ impl TypeKind {
             Self::List => "list".to_string(),
             Self::Function => "function".to_string(),
             Self::NativeFunction => "built-in function".to_string(),
+            Self::Class => "class".to_string(),
+            Self::Instance => "object".to_string(),
         }
     }
 }
@@ -182,6 +187,7 @@ impl DynValue {
             TypeKind::Nil => "None".to_string(),
             TypeKind::List =>
                 format!("[{}]", &self.as_list().unwrap().iter().map(|x| x.as_string()).collect::<Vec<String>>().join(", ")),
+            TypeKind::Instance => format!("<{} object>", self.as_instance().unwrap().class.name),
             _ => format!("<{} {}>", self.tipe, self.name.as_ref().unwrap_or(&"unnamed".to_string())),
         }
     }
@@ -193,7 +199,10 @@ impl DynValue {
             TypeKind::Boolean => *self.value.borrow().downcast_ref::<bool>().unwrap(),
             TypeKind::Nil => false,
             TypeKind::List => !self.as_list().unwrap().is_empty(),
-            TypeKind::Function | TypeKind::NativeFunction => true,
+            TypeKind::Function | 
+                TypeKind::NativeFunction | 
+                TypeKind::Class |
+                TypeKind::Instance => true,
         }
     }
 
@@ -207,9 +216,21 @@ impl DynValue {
 
     pub fn as_callable(&self) -> Option<Box<dyn Callable>> {
         match self.tipe {
-            TypeKind::Function => Some(Box::new(self.value.borrow().downcast_ref::<Function>().unwrap().clone())),
-            TypeKind::NativeFunction => Some(Box::new(self.value.borrow().downcast_ref::<NativeFunction>().unwrap().clone())),
+            TypeKind::Function => 
+                Some(Box::new(self.value.borrow().downcast_ref::<Function>().unwrap().clone())),
+            TypeKind::NativeFunction => 
+                Some(Box::new(self.value.borrow().downcast_ref::<NativeFunction>().unwrap().clone())),
+            TypeKind::Class => 
+                Some(Box::new(self.value.borrow().downcast_ref::<Class>().unwrap().clone())),
             _ => None,
+        }
+    }
+
+    pub fn as_instance(&self) -> Option<Instance> {
+        if self.tipe == TypeKind::Instance {
+            Some(self.value.borrow().downcast_ref::<Instance>().unwrap().clone())
+        } else {
+            None
         }
     }
 
@@ -266,6 +287,19 @@ impl From<Token> for DynValue {
 impl From<i32> for DynValue {
     fn from(value: i32) -> Self {
         Self::from_f64(value as f64)
+    }
+}
+
+impl From<Class> for DynValue {
+    fn from(value: Class) -> Self {
+        let name = value.name.clone();
+        Self::new_with_name(Box::new(value), TypeKind::Class, name)
+    }
+}
+
+impl From<Instance> for DynValue {
+    fn from(instance: Instance) -> Self {
+        Self::new(Box::new(instance), TypeKind::Instance)
     }
 }
 

@@ -82,7 +82,7 @@ impl TokenKind {
             TokenKind::Percent => r"%",
 
             TokenKind::And => r"and",
-            TokenKind::Class => r"Class",
+            TokenKind::Class => r"class",
             TokenKind::Else => r"else",
             TokenKind::False => r"False",
             TokenKind::Def => r"def",

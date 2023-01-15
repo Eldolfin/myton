@@ -7,6 +7,7 @@ mod repl;
 mod environment;
 mod native_functions;
 mod functions;
+mod class;
 mod resolver;
 mod expression;
 mod statement;

@@ -10,6 +10,7 @@ use super::token::Token;
 use super::types::DynValue;
 use super::functions::Function;
 use super::resolver::Resolvable;
+use super::class::Class;
 
 pub trait Executable {
     fn execute(&self, env: &Env) -> Result<(), Traceback>;
@@ -76,6 +77,11 @@ pub struct GlobalStatement {
 
 pub struct NonlocalStatement {
     pub names: Vec<Token>,
+}
+
+pub struct ClassStatement {
+    pub name: Token,
+    pub methods: Vec<FunctionStatement>,
 }
 
 impl Executable for ExpressionStatement {
@@ -218,6 +224,23 @@ impl Executable for NonlocalStatement {
     }
 }
 
+impl Executable for ClassStatement {
+   fn execute(&self, env: &Env) -> Result<(), Traceback> {
+        let class = Class::new(self.name.value.clone());
+        env.borrow_mut().set(self.name.value.clone(), DynValue::from(class));
+        Ok(())
+   } 
+}
+
+impl ClassStatement {
+    pub fn new(name: Token, methods: Vec<FunctionStatement>) -> Self {
+        Self {
+            name,
+            methods,
+        }
+    }
+}
+
 impl Statement for FunctionStatement {}
 impl Statement for ExpressionStatement {}
 impl Statement for IfStatement {}
@@ -229,3 +252,4 @@ impl Statement for ForeachStatement {}
 impl Statement for ReturnStatement {}
 impl Statement for GlobalStatement {}
 impl Statement for NonlocalStatement {}
+impl Statement for ClassStatement {}

@@ -66,6 +66,12 @@ pub struct Grouping {
     uuid: UUID,
 }
 
+pub struct Get {
+    pub object: EXPR,
+    pub name: Token,
+    uuid: UUID,
+}
+
 pub enum OperatorKind {
     Plus,
     Minus,
@@ -364,6 +370,23 @@ impl Call {
     }
 }
 
+impl Evaluable for Get {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
+        todo!()
+    }
+}
+
+impl Get {
+    pub fn new(object: EXPR, name: Token, uuid: UUID) -> Self {
+        Self {
+            object,
+            name,
+            uuid,
+        }
+    }
+}
+
+
 impl Clone for Variable {
     fn clone(&self) -> Self {
         Self {
@@ -413,3 +436,10 @@ impl Expression for List {
         self.uuid
     }
 }
+impl Expression for Get {
+    fn uuid(&self) -> UUID {
+        self.uuid
+    }
+}
+
+

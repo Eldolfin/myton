@@ -34,14 +34,33 @@ impl Parser {
     fn declaration(&mut self) -> Result<STMT, Traceback> {
         if self.match_token(vec![TokenKind::Def]) {
             self.function()
-        } else if self.check_sequence(vec![TokenKind::Identifier, TokenKind::Equal]) {
+        } else if self.check_sequence(
+            vec![TokenKind::Identifier, TokenKind::Equal]) {
             self.var_declaration()
+        } else if self.match_token(vec![TokenKind::Class]) {
+            self.class()
         } else {
             self.statement()
         }
     }
 
+    fn class(&mut self) -> Result<STMT, Traceback> {
+        let indent_level = self.previous().indent; // should be 0 right?
+        let name = self.consume(TokenKind::Identifier, "Expect class name.")?;
+        self.consume(TokenKind::Colon, "Expect ':' after class name.")?;
+
+        let mut methods = Vec::new();
+        while !self.is_at_end() && self.peek().indent > indent_level {
+            methods.push(self.function_inner()?);
+        }
+        Ok(Box::new(ClassStatement::new(name, methods)))
+    }
+
     fn function(&mut self) -> Result<STMT, Traceback> {
+        Ok(Box::new(self.function_inner()?))
+    }
+
+    fn function_inner(&mut self) -> Result<FunctionStatement, Traceback> {
         let name = self.consume(TokenKind::Identifier, "Expect function name.")?;
         self.consume(TokenKind::LeftParen, "Expect '(' after function name.")?;
         let mut parameters = Vec::new();
@@ -54,7 +73,7 @@ impl Parser {
         self.consume(TokenKind::RightParen, "Expect ')' after parameters.")?;
         self.consume(TokenKind::Colon, "Expect ':' before function body.")?;
         let body = self.block_statement()?;
-        Ok(Box::new(FunctionStatement::new(name, parameters, body)))
+        Ok(FunctionStatement::new(name, parameters, body))
     }
 
     fn var_declaration(&mut self) -> Result<STMT, Traceback> {
@@ -271,6 +290,9 @@ impl Parser {
         loop {
             if self.match_token(vec![TokenKind::LeftParen]) {
                 expr = self.finish_call(expr)?;
+            } else if self.match_token(vec![TokenKind::Dot]) {
+                let name = self.consume(TokenKind::Identifier, "Expect property name after '.'.")?;
+                expr = Box::new(Get::new(expr, name, self.current));
             } else {
                 break;
             }

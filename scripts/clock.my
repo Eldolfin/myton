@@ -1,3 +1,5 @@
+def round(x):
+    return x - (x % 1)
 a="il est "
 b=":"
 c=", et "
@@ -14,8 +16,8 @@ def sleep_un_peu():
     max=max-1
 while True:
   time=clock()
-  s=time%60
-  m=(time/60)%60
-  h=(time/3600)%24
+  s=round(time%60)
+  m=round((time/60)%60)
+  h=round((time/3600)%24)
   il_est_quelle_heure()
   sleep_un_peu()
