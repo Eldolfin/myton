@@ -1,0 +1,1 @@
+undefined1.bar = undefined2 # expect error: undefined1 is not defined

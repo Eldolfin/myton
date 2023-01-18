@@ -1,0 +1,7 @@
+[31merror[error]: Only instances have fields
+----- Traceback -----
+  ┌─ <unknown>:1:18
+  | 
+1 | None.bar = "value"
+  |                   ^
+[0m

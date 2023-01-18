@@ -12,11 +12,20 @@ pub struct Resolver {
     scopes :Vec<HashMap<String, bool>>,
     pub locals :HashMap<UUID, usize>, // UUID -> depth
     current_function :FunctionType,
+    current_class :ClassType,
 }
 
+#[derive(Clone, Copy)]
 enum FunctionType {
     None,
     Function,
+    Method,
+}
+
+#[derive(Clone, Copy)]
+enum ClassType {
+    None,
+    Class,
 }
 
 pub trait Resolvable {
@@ -31,6 +40,7 @@ impl Resolver {
             scopes: vec![HashMap::new()],
             locals: HashMap::new(),
             current_function: FunctionType::None,
+            current_class: ClassType::None,
         }
     }
     // STATEMENTS
@@ -183,8 +193,24 @@ impl Resolver {
     }
     
     fn class(&mut self, class: &ClassStatement) -> ResolveResult {
+        let enclosing_class  = self.current_class;
+        self.current_class = ClassType::Class;
+
         self.declare(&class.name)?;
         self.define(&class.name)?;
+
+        self.begin_scope();
+        self.scopes.last_mut().unwrap().insert("this".to_string(), true);
+
+        for method in &class.methods {
+            let declaration = FunctionType::Method;
+            self.resolve_function(method, declaration)?;
+        }
+
+        self.end_scope();
+
+        self.current_class = enclosing_class;
+
         Ok(())
     }
 
@@ -230,6 +256,28 @@ impl Resolver {
 
     fn get(&mut self, expr: &Get) -> ResolveResult {
         expr.object.resolve(self)
+    }
+
+    fn set(&mut self, expr: &Set) -> ResolveResult {
+        expr.object.resolve(self)?;
+        expr.value.resolve(self)
+    }
+
+    fn this(&mut self, expr: &This) -> ResolveResult {
+        if matches!(self.current_class, ClassType::None) {
+            return Err(Traceback::from(format!("Cannot use 'this' outside of a class.")));
+        }
+
+        let casted :EXPR = Box::new(expr.clone());
+        let mut keyword = expr.keyword.clone();
+
+        // because we allow multiple types of this keywords
+        // (this and self), we set the keyword to "this" so
+        // that the local function can find it.
+        keyword.value = "this".to_string();
+
+        self.local(&casted, &keyword);
+        Ok(())
     }
 }
 
@@ -358,14 +406,18 @@ impl Resolvable for Get {
     }
 }
 
-impl Clone for FunctionType {
-    fn clone(&self) -> Self {
-        match self {
-            FunctionType::None => FunctionType::None,
-            FunctionType::Function => FunctionType::Function,
-        }
+impl Resolvable for Set {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.set(self)
     }
 }
+
+impl Resolvable for This {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.this(self)
+    }
+}
+
 
 
 #[cfg(test)]

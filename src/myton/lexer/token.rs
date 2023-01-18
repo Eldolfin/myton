@@ -93,7 +93,7 @@ impl TokenKind {
             TokenKind::Print => r"print",
             TokenKind::Return => r"return",
             TokenKind::Super => r"super",
-            TokenKind::Selph => r"self",
+            TokenKind::Selph => r"(self|this)",
             TokenKind::True => r"True",
             TokenKind::While => r"while",
             TokenKind::Pass => r"pass",

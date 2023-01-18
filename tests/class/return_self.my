@@ -1,0 +1,5 @@
+class foo:
+  def return_self():
+    return self
+
+print(foo().return_self())

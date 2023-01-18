@@ -1,0 +1,7 @@
+[31merror[error]: 'str' object has no attribute 'foo'
+----- Traceback -----
+  ┌─ <unknown>:1:9
+  | 
+1 | "str".foo
+  |          ^
+[0m

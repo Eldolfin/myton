@@ -1,3 +1,6 @@
+use std::any::Any;
+
+use super::class::Instance;
 use super::environment::Env;
 use super::token::{Token, TokenKind};
 use super::types::{TypeKind, DynValue};
@@ -8,8 +11,10 @@ pub trait Evaluable {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
 }
 
-pub trait Expression: Evaluable + Resolvable {
+pub trait Expression: Evaluable + Resolvable + Any {
     fn uuid(&self) -> UUID;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub type EXPR = Box<dyn Expression>;
@@ -29,6 +34,7 @@ pub struct List {
     uuid: UUID,
 }
 
+#[derive(Clone)]
 pub struct Variable {
     pub token: Token,
     uuid: UUID,
@@ -69,6 +75,19 @@ pub struct Grouping {
 pub struct Get {
     pub object: EXPR,
     pub name: Token,
+    uuid: UUID,
+}
+
+pub struct Set {
+    pub object: EXPR,
+    pub name: Token,
+    pub value: EXPR,
+    uuid: UUID,
+}
+
+#[derive(Clone)]
+pub struct This {
+    pub keyword: Token,
     uuid: UUID,
 }
 
@@ -372,7 +391,24 @@ impl Call {
 
 impl Evaluable for Get {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
-        todo!()
+        let object = self.object.eval(env)?;
+        if let Some(instance) = object.as_instance() {
+            if let Some(value) = instance.get(&self.name.value) {
+                return Ok(value);
+            } else {
+                return Err(Traceback {
+                    message: Some(format!("'{}' object has no attribute '{}'", instance.class.name, self.name.value)),
+                    pos: self.name.pos.unwrap(),
+                    ..Default::default()
+                });
+            }
+        } else {
+            Err(Traceback {
+                message: Some(format!("'{}' object has no attribute '{}'", object.tipe, self.name.value)),
+                pos: self.name.pos.unwrap(),
+                ..Default::default()
+            })
+        }
     }
 }
 
@@ -386,60 +422,65 @@ impl Get {
     }
 }
 
+impl Evaluable for Set {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
+        let object = self.object.eval(env)?;
 
-impl Clone for Variable {
-    fn clone(&self) -> Self {
-        Self {
-            token: self.token.clone(),
-            uuid: self.uuid,
+        let borrow = object.value.borrow_mut().downcast_mut::<Instance>().cloned();
+
+        if let Some(mut instance) = borrow {
+            let value = self.value.eval(env)?;
+            instance.set(self.name.value.clone(), value.clone());
+            Ok(value)
+        } else {
+            Err(Traceback {
+                message: Some(format!("'{}' object has no attribute '{}'", object.tipe, self.name.value)),
+                pos: self.name.pos.unwrap(),
+                ..Default::default()
+            })
         }
     }
 }
 
-impl Expression for Unary {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Binary {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Logical {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Call {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Grouping {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Literal {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Variable {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for List {
-    fn uuid(&self) -> UUID {
-        self.uuid
-    }
-}
-impl Expression for Get {
-    fn uuid(&self) -> UUID {
-        self.uuid
+impl Set {
+    pub fn new(object: EXPR, name: Token, value: EXPR, uuid: UUID) -> Self {
+        Self {
+            object,
+            name,
+            value,
+            uuid,
+        }
     }
 }
 
+impl Evaluable for This {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
+        Ok(env.borrow().get("this".to_string()).unwrap().clone())
+    }
+}
 
+impl This {
+    pub fn new(keyword: Token, uuid: UUID) -> Self {
+        Self {
+            keyword,
+            uuid,
+        }
+    }
+}
+
+macro_rules! impl_expr {
+    ($($t:ty),*) => {
+        $(
+            impl Expression for $t {
+                fn uuid(&self) -> UUID {
+                    self.uuid
+                }
+                
+                fn as_any(&self) -> &dyn Any {
+                    self
+                }
+            }
+        )*
+    }
+}
+impl_expr!(Unary, Binary, Logical, Call, Grouping, Literal, Variable, List, Get, Set, This);

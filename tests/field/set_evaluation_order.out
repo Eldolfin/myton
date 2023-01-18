@@ -1,0 +1,7 @@
+[31merror[error]: Undefined variable 'undefined1'
+----- Traceback -----
+  ┌─ <unknown>:1:10
+  | 
+1 | undefined1.bar = undefined2 # expect error: undefined1 is not defined
+  |           ^
+[0m

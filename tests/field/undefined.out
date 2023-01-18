@@ -1,0 +1,7 @@
+[31merror[error]: 'Foo' object has no attribute 'bar'
+----- Traceback -----
+  ┌─ <unknown>:4:7
+  | 
+4 | foo.bar # expect runtime error: Undefined property 'bar'.
+  |        ^
+[0m

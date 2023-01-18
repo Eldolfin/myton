@@ -1,3 +1,4 @@
+use super::statement::{FunctionStatement, FunctionStatementInner};
 use super::token::{Token, TokenKind};
 use super::functions::{NativeFunction, Function, Callable};
 use super::class::{Class, Instance};
@@ -300,6 +301,13 @@ impl From<Class> for DynValue {
 impl From<Instance> for DynValue {
     fn from(instance: Instance) -> Self {
         Self::new(Box::new(instance), TypeKind::Instance)
+    }
+}
+
+impl From<Function> for DynValue {
+    fn from(value: Function) -> Self {
+        let name = value.statement.inner.borrow().name.value.clone();
+        Self::from_function(value, name)
     }
 }
 

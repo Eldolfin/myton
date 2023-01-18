@@ -48,9 +48,11 @@ impl Parser {
         let indent_level = self.previous().indent; // should be 0 right?
         let name = self.consume(TokenKind::Identifier, "Expect class name.")?;
         self.consume(TokenKind::Colon, "Expect ':' after class name.")?;
+        self.consume(TokenKind::Newline, "Expect newline after class name.")?;
 
         let mut methods = Vec::new();
         while !self.is_at_end() && self.peek().indent > indent_level {
+            self.consume(TokenKind::Def, "Expect 'def' before class method.")?;
             methods.push(self.function_inner()?);
         }
         Ok(Box::new(ClassStatement::new(name, methods)))
@@ -188,7 +190,34 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<EXPR, Traceback> {
-        self.or()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<EXPR, Traceback> {
+        let expr = self.or()?;
+
+        if self.match_token(vec![TokenKind::Equal]) {
+            if let Some(get) =  expr.as_any().downcast_ref::<Get>() {
+                let value = self.assignment()?;
+
+                return if let Some(var) = get.object.as_any().downcast_ref::<Variable>().cloned() {
+                    Ok(Box::new(Set::new (
+                        Box::new(var),
+                        get.name.clone(),
+                        value,
+                        self.current
+                    )))
+                } else {
+                    Err(Traceback {
+                        message: Some("Only instances have fields".to_string()),
+                        pos: self.previous().pos.unwrap(),
+                        ..Default::default()
+                    })
+                }
+            }
+        }
+
+        Ok(expr)
     }
 
     fn global_statement(&mut self) -> Result<STMT, Traceback> {
@@ -338,6 +367,9 @@ impl Parser {
 
             self.consume(TokenKind::RightBracket, "Expect ']' after expression.")?;
             return Ok(Box::new(List::new(elements, self.current)));
+        }
+        if self.match_token(vec![TokenKind::Selph]) {
+            return Ok(Box::new(This::new(self.previous(), self.current)));
         }
 
         Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})

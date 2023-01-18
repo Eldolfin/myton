@@ -1,0 +1,7 @@
+[31merror[error]: Expect property name after '.'.
+----- Traceback -----
+  ┌─ <unknown>:1:4
+  | 
+1 | 123.
+  |     ^
+[0m

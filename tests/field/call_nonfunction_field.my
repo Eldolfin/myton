@@ -1,0 +1,6 @@
+class Foo:
+
+foo = Foo()
+foo.bar = "not a function"
+
+foo.bar()

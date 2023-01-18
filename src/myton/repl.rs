@@ -30,7 +30,6 @@ impl Repl {
     pub fn welcome_prompt(&mut self) {
         self.clear_all();
         self.println("Myton 0.0.1 (main) [Rust 1.65.0] on linux".to_string());
-        self.println("Type \"help\" for more information.".to_string());
     }
 
     fn update_cursor(&mut self) {
@@ -44,8 +43,9 @@ impl Repl {
     }
 
     fn exit(&mut self) {
-        self.clear_all();
-        self.println("Byebye!".to_string());
+        self.newline();
+        self.update_cursor_pos();
+        // self.print("Byebye!".to_string());
         return;
     }
 
@@ -111,6 +111,7 @@ impl Repl {
     }
     
     pub fn skiplines(&mut self, n: u16) {
+        let old_cursor = self.cursor;
         self.cursor.1 = (self.cursor.1 + n) % self.term_size.1;
         self.update_cursor();
     }

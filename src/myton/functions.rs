@@ -27,6 +27,15 @@ impl Function {
             closure,
         }
     }
+
+    pub fn bind(&self, instance: DynValue) -> Self {
+        let env = make_env_enclosed(self.closure.clone());
+        env.borrow_mut().set("this".to_string(), instance);
+        Self {
+            statement: self.statement.clone(),
+            closure: env,
+        }
+    }
 }
 
 impl Callable for Function {

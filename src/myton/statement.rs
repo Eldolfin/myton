@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::io::Write;
@@ -226,7 +227,15 @@ impl Executable for NonlocalStatement {
 
 impl Executable for ClassStatement {
    fn execute(&self, env: &Env) -> Result<(), Traceback> {
-        let class = Class::new(self.name.value.clone());
+
+        let methods : HashMap<String, Function> = self.methods.iter().map(|method| {
+            let name = method.inner.borrow().name.clone();
+            let function = Function::new(method.clone(), env.clone());
+            (name.value, function)
+        }).collect();
+        
+        let class = Class::new(self.name.value.clone(), methods);
+
         env.borrow_mut().set(self.name.value.clone(), DynValue::from(class));
         Ok(())
    } 

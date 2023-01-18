@@ -1,0 +1,10 @@
+class Foo:
+  def assertion1():
+    return self == this
+
+  def assertion2():
+    return this == self
+
+instance = Foo()
+print(instance.assertion1())
+print(instance.assertion2())
