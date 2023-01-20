@@ -26,6 +26,7 @@ enum FunctionType {
 enum ClassType {
     None,
     Class,
+    Subclass,
 }
 
 pub trait Resolvable {
@@ -109,7 +110,7 @@ impl Resolver {
 
         let casted :EXPR = Box::new(expr.clone());
 
-        self.local(&casted, &expr.token.clone());
+        self.local(&casted, &expr.name.clone());
         Ok(())
     }
 
@@ -199,6 +200,22 @@ impl Resolver {
         self.declare(&class.name)?;
         self.define(&class.name)?;
 
+        if let Some(superclass) = &class.superclass {
+            if superclass.name.value == class.name.value {
+                return Err(Traceback {
+                    message: Some(format!("A class cannot inherit from itself.")),
+                    pos: class.name.pos.unwrap(),
+                    ..Default::default()
+                });
+            }
+
+            self.current_class = ClassType::Subclass;
+            superclass.resolve(self)?;
+
+            self.begin_scope();
+            self.scopes.last_mut().unwrap().insert("super".to_string(), true);
+        }
+
         self.begin_scope();
         self.scopes.last_mut().unwrap().insert("this".to_string(), true);
 
@@ -208,6 +225,10 @@ impl Resolver {
         }
 
         self.end_scope();
+
+        if class.superclass.is_some() {
+            self.end_scope();
+        }
 
         self.current_class = enclosing_class;
 
@@ -277,6 +298,27 @@ impl Resolver {
         keyword.value = "this".to_string();
 
         self.local(&casted, &keyword);
+        Ok(())
+    }
+
+    fn superr(&mut self, expr: &Super) -> ResolveResult {
+        if matches!(self.current_class, ClassType::None) {
+            return Err(Traceback {
+                message: Some(format!("Cannot use 'super' outside of a class.")),
+                pos: expr.keyword.pos.unwrap(),
+                ..Default::default()
+            });
+        } else if !matches!(self.current_class, ClassType::Subclass) {
+            return Err(Traceback {
+                message: Some(format!("Cannot use 'super' in a class with no superclass.")),
+                pos: expr.keyword.pos.unwrap(),
+                ..Default::default()
+            });
+        }
+
+        let casted :EXPR = Box::new(expr.clone());
+
+        self.local(&casted, &expr.keyword);
         Ok(())
     }
 }
@@ -418,7 +460,11 @@ impl Resolvable for This {
     }
 }
 
-
+impl Resolvable for Super {
+    fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
+        resolver.superr(self)
+    }
+}
 
 #[cfg(test)]
 mod tests {

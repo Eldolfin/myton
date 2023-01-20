@@ -11,6 +11,7 @@ use super::environment::Env;
 pub struct Class {
     pub name: String,
     pub methods: HashMap<String, Function>,
+    pub superclass: Option<Box<Class>>,
 }
 
 pub struct Instance {
@@ -19,15 +20,22 @@ pub struct Instance {
 }
 
 impl Class {
-    pub fn new(name: String, methods: HashMap<String, Function>) -> Self {
+    pub fn new(name: String, methods: HashMap<String, Function>, superclass: Option<Class>) -> Self {
         Self {
             name,
             methods,
+            superclass: superclass.map(|c| Box::new(c)),
         }
     }
 
-    fn find_method(&self, name: &str) -> Option<&Function> {
-        self.methods.get(name)
+    pub fn find_method(&self, name: &str) -> Option<&Function> {
+        if let Some(method) = self.methods.get(name) {
+            Some(method)
+        } else if let Some(superclass) = &self.superclass {
+            superclass.find_method(name)
+        } else {
+            None
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use super::class::Instance;
-use super::environment::Env;
+use super::environment::{Env, make_env_enclosed};
 use super::token::{Token, TokenKind};
 use super::types::{TypeKind, DynValue};
 use super::traceback::Traceback;
@@ -36,7 +36,7 @@ pub struct List {
 
 #[derive(Clone)]
 pub struct Variable {
-    pub token: Token,
+    pub name: Token,
     uuid: UUID,
 }
 
@@ -88,6 +88,13 @@ pub struct Set {
 #[derive(Clone)]
 pub struct This {
     pub keyword: Token,
+    uuid: UUID,
+}
+
+#[derive(Clone)]
+pub struct Super {
+    pub keyword: Token,
+    pub method: Token,
     uuid: UUID,
 }
 
@@ -205,8 +212,8 @@ impl Evaluable for Variable {
         match env.borrow().get_from_variable(self) {
             Some(value) => Ok(value),
             None => Err(Traceback { 
-                message: Some(format!("Undefined variable '{}'", self.token.value)),
-                pos: self.token.pos.unwrap(),
+                message: Some(format!("Undefined variable '{}'", self.name.value)),
+                pos: self.name.pos.unwrap(),
                 ..Default::default()
             })
         }
@@ -215,7 +222,7 @@ impl Evaluable for Variable {
 
 impl Variable {
     pub fn new(token: Token, uuid: UUID) -> Variable {
-        Variable { token, uuid }
+        Variable { name: token, uuid }
     }
 }
 
@@ -468,6 +475,48 @@ impl This {
     }
 }
 
+impl Evaluable for Super {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
+        let var = Variable::new(self.keyword.clone(), self.uuid);
+
+        // unwraps are safe because we check for 
+        // errors in the resolver
+        let superclass = env.borrow().get_from_variable(&var).unwrap().as_class().unwrap();
+
+        // :(
+        let object = env.borrow()
+            .enclosing
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .get("this".to_string())
+            .unwrap()
+            .clone()
+            .as_instance()
+            .unwrap();
+
+        if let Some(method) = superclass.find_method(&self.method.value) {
+            Ok(DynValue::from(method.bind(DynValue::from(object))))
+        } else {
+            Err(Traceback {
+                message: Some(format!("Undefined property '{}'", self.method.value)),
+                pos: self.method.pos.unwrap(),
+                ..Default::default()
+            })
+        }
+    }
+}
+
+impl Super {
+    pub fn new(keyword: Token, method: Token, uuid: UUID) -> Self {
+        Self {
+            keyword,
+            method,
+            uuid,
+        }
+    }
+}
+
 macro_rules! impl_expr {
     ($($t:ty),*) => {
         $(
@@ -483,4 +532,4 @@ macro_rules! impl_expr {
         )*
     }
 }
-impl_expr!(Unary, Binary, Logical, Call, Grouping, Literal, Variable, List, Get, Set, This);
+impl_expr!(Unary, Binary, Logical, Call, Grouping, Literal, Variable, List, Get, Set, This, Super);

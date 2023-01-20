@@ -1,4 +1,3 @@
-use super::statement::{FunctionStatement, FunctionStatementInner};
 use super::token::{Token, TokenKind};
 use super::functions::{NativeFunction, Function, Callable};
 use super::class::{Class, Instance};
@@ -230,6 +229,14 @@ impl DynValue {
     pub fn as_instance(&self) -> Option<Instance> {
         if self.tipe == TypeKind::Instance {
             Some(self.value.borrow().downcast_ref::<Instance>().unwrap().clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn as_class(&self) -> Option<Class> {
+        if self.tipe == TypeKind::Class {
+            Some(self.value.borrow().downcast_ref::<Class>().unwrap().clone())
         } else {
             None
         }

@@ -10,7 +10,7 @@ pub type Env = Rc<RefCell<Environment>>;
 
 pub struct Environment {
     values: HashMap<String, DynValue>,
-    enclosing: Option<Env>,
+    pub enclosing: Option<Env>,
     resolved_locals: Option<HashMap<UUID, usize>>,
     globals :Vec<String>,
     non_locals :Vec<String>,
@@ -54,11 +54,11 @@ impl Environment {
         if let Some(locals) = &self.resolved_locals {
             if let Some(distance) = locals.get(&variable.uuid()) {
                 if let Some(enclosing) = self.ancestor(*distance) {
-                    return enclosing.borrow_mut().get(variable.token.value.to_string());
+                    return enclosing.borrow_mut().get(variable.name.value.to_string());
                 }
             }
         }
-        self.get(variable.token.value.to_string())
+        self.get(variable.name.value.to_string())
     }
 
     pub fn set(&mut self, name: String, value: DynValue) {

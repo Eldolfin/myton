@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::io::Write;
 
-use super::environment::{Env, EnvVariable};
+use super::environment::{Env, EnvVariable, make_env_enclosed};
 use super::MyWrite;
-use super::expression::EXPR;
+use super::expression::{EXPR, Variable, Evaluable};
 use super::traceback::Traceback;
 use super::token::Token;
 use super::types::DynValue;
@@ -83,6 +83,7 @@ pub struct NonlocalStatement {
 pub struct ClassStatement {
     pub name: Token,
     pub methods: Vec<FunctionStatement>,
+    pub superclass: Option<Variable>,
 }
 
 impl Executable for ExpressionStatement {
@@ -227,14 +228,37 @@ impl Executable for NonlocalStatement {
 
 impl Executable for ClassStatement {
    fn execute(&self, env: &Env) -> Result<(), Traceback> {
-
+        let mut env = env.clone();
+        let superclass = if let Some(superclass_stmt) = &self.superclass {
+            let superclass = superclass_stmt.eval(&env)?;
+            if let Some(superclass) = superclass.as_class() {
+                env = make_env_enclosed(env.clone());
+                env.borrow_mut().set("super".to_string(), DynValue::from(superclass.clone()));
+                Some(superclass)
+            } else {
+                return Err(Traceback {
+                    message: Some(format!("class cannot inherit from non-class '{}'", superclass.tipe)),
+                    pos: superclass_stmt.name.pos.unwrap(),
+                    ..Default::default()
+                });
+            }
+        } else {
+            None
+        };
+        
         let methods : HashMap<String, Function> = self.methods.iter().map(|method| {
             let name = method.inner.borrow().name.clone();
             let function = Function::new(method.clone(), env.clone());
             (name.value, function)
         }).collect();
+
+        if superclass.is_some() {
+            let enclosing = env.borrow().enclosing.clone().unwrap();
+            env = enclosing;
+        }
+
         
-        let class = Class::new(self.name.value.clone(), methods);
+        let class = Class::new(self.name.value.clone(), methods, superclass);
 
         env.borrow_mut().set(self.name.value.clone(), DynValue::from(class));
         Ok(())
@@ -242,10 +266,11 @@ impl Executable for ClassStatement {
 }
 
 impl ClassStatement {
-    pub fn new(name: Token, methods: Vec<FunctionStatement>) -> Self {
+    pub fn new(name: Token, methods: Vec<FunctionStatement>, superclass: Option<Variable>) -> Self {
         Self {
             name,
             methods,
+            superclass,
         }
     }
 }

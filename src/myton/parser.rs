@@ -47,6 +47,17 @@ impl Parser {
     fn class(&mut self) -> Result<STMT, Traceback> {
         let indent_level = self.previous().indent; // should be 0 right?
         let name = self.consume(TokenKind::Identifier, "Expect class name.")?;
+
+        let superclass = if self.match_token(vec![TokenKind::LeftParen]) {
+            self.consume(TokenKind::Identifier, "Expect superclass name.")?;
+            let name = self.previous().clone();
+            self.consume(TokenKind::RightParen, "Expect ')' after superclass name.")?;
+            Some(Variable::new(name, self.current))
+        } else {
+            None
+        };
+
+
         self.consume(TokenKind::Colon, "Expect ':' after class name.")?;
         self.consume(TokenKind::Newline, "Expect newline after class name.")?;
 
@@ -55,7 +66,7 @@ impl Parser {
             self.consume(TokenKind::Def, "Expect 'def' before class method.")?;
             methods.push(self.function_inner()?);
         }
-        Ok(Box::new(ClassStatement::new(name, methods)))
+        Ok(Box::new(ClassStatement::new(name, methods, superclass)))
     }
 
     fn function(&mut self) -> Result<STMT, Traceback> {
@@ -370,6 +381,12 @@ impl Parser {
         }
         if self.match_token(vec![TokenKind::Selph]) {
             return Ok(Box::new(This::new(self.previous(), self.current)));
+        }
+        if self.match_token(vec![TokenKind::Super]) {
+            let keyword = self.previous();
+            self.consume(TokenKind::Dot, "Expect '.' after 'super'.")?;
+            let method = self.consume(TokenKind::Identifier, "Expect superclass method name.")?;
+            return Ok(Box::new(Super::new(keyword, method, self.current)));
         }
 
         Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})
