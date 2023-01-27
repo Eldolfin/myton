@@ -1,10 +1,10 @@
-use super::token::{TokenKind, Token};
-use super::traceback::Traceback;
-use std::rc::Rc;
-use std::cell::RefCell;
 use super::expression::*;
 use super::statement::*;
+use super::token::{Token, TokenKind};
+use super::traceback::Traceback;
 use super::MyWrite;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -34,8 +34,7 @@ impl Parser {
     fn declaration(&mut self) -> Result<STMT, Traceback> {
         if self.match_token(vec![TokenKind::Def]) {
             self.function()
-        } else if self.check_sequence(
-            vec![TokenKind::Identifier, TokenKind::Equal]) {
+        } else if self.check_sequence(vec![TokenKind::Identifier, TokenKind::Equal]) {
             self.var_declaration()
         } else if self.match_token(vec![TokenKind::Class]) {
             self.class()
@@ -56,7 +55,6 @@ impl Parser {
         } else {
             None
         };
-
 
         self.consume(TokenKind::Colon, "Expect ':' after class name.")?;
         self.consume(TokenKind::Newline, "Expect newline after class name.")?;
@@ -94,11 +92,11 @@ impl Parser {
         self.consume(TokenKind::Equal, "Expect '=' after variable name.")?;
         let initializer = self.expression()?;
 
-        self.consume(TokenKind::Newline, "Expect newline after variable declaration.")?;
-        Ok(Box::new(VarStatement {
-            name,
-            initializer,
-        }))
+        self.consume(
+            TokenKind::Newline,
+            "Expect newline after variable declaration.",
+        )?;
+        Ok(Box::new(VarStatement { name, initializer }))
     }
 
     fn statement(&mut self) -> Result<STMT, Traceback> {
@@ -139,10 +137,7 @@ impl Parser {
         self.consume(TokenKind::Colon, "Expect ':' after while condition.")?;
         let body = self.block_statement()?;
 
-        Ok(Box::new(WhileStatement {
-            condition,
-            body,
-        }))
+        Ok(Box::new(WhileStatement { condition, body }))
     }
 
     fn for_statement(&mut self) -> Result<STMT, Traceback> {
@@ -167,7 +162,9 @@ impl Parser {
         let else_branch = if self.match_token(vec![TokenKind::Else]) {
             self.consume(TokenKind::Colon, "Expect ':' after else.")?;
             Some(self.block_statement()?)
-        } else { None };
+        } else {
+            None
+        };
 
         Ok(Box::new(IfStatement {
             condition,
@@ -183,15 +180,16 @@ impl Parser {
         while !self.is_at_end() && self.peek().indent > indent_level {
             statements.push(self.declaration()?);
         }
-        Ok(Box::new(BlockStatement {
-            statements,
-        }))
+        Ok(Box::new(BlockStatement { statements }))
     }
 
     fn print_statement(&mut self) -> Result<STMT, Traceback> {
         let expression = self.expression()?;
         self.consume(TokenKind::Newline, "Expect newline after expression.")?;
-        Ok(Box::new(PrintStatement { expression, output: self.output.clone() }))
+        Ok(Box::new(PrintStatement {
+            expression,
+            output: self.output.clone(),
+        }))
     }
 
     fn expression_statement(&mut self) -> Result<STMT, Traceback> {
@@ -208,22 +206,22 @@ impl Parser {
         let expr = self.or()?;
 
         if self.match_token(vec![TokenKind::Equal]) {
-            if let Some(get) =  expr.as_any().downcast_ref::<Get>() {
+            if let Some(get) = expr.as_any().downcast_ref::<Get>() {
                 let value = self.assignment()?;
 
                 return if let Some(var) = get.object.as_any().downcast_ref::<Variable>().cloned() {
-                    Ok(Box::new(Set::new (
+                    Ok(Box::new(Set::new(
                         Box::new(var),
                         get.name.clone(),
                         value,
-                        self.current
+                        self.current,
                     )))
                 } else if let Some(this) = get.object.as_any().downcast_ref::<This>().cloned() {
-                    Ok(Box::new(Set::new (
+                    Ok(Box::new(Set::new(
                         Box::new(this.clone()),
                         this.keyword.clone(),
                         value,
-                        self.current
+                        self.current,
                     )))
                 } else {
                     Err(Traceback {
@@ -231,7 +229,7 @@ impl Parser {
                         pos: self.previous().pos.unwrap(),
                         ..Default::default()
                     })
-                }
+                };
             }
         }
 
@@ -254,7 +252,10 @@ impl Parser {
             names.push(self.consume(TokenKind::Identifier, "Expect identifier after 'nonlocal'")?);
             self.match_token(vec![TokenKind::Comma])
         } {}
-        self.consume(TokenKind::Newline, "Expect newline after nonlocal statement.")?;
+        self.consume(
+            TokenKind::Newline,
+            "Expect newline after nonlocal statement.",
+        )?;
         Ok(Box::new(NonlocalStatement { names }))
     }
 
@@ -282,10 +283,13 @@ impl Parser {
         Ok(expr)
     }
 
-
     fn equality(&mut self) -> Result<EXPR, Traceback> {
         let mut expr = self.comparison()?;
-        while self.match_token(vec![TokenKind::BangEqual, TokenKind::EqualEqual, TokenKind::EqualEqualEqual]) {
+        while self.match_token(vec![
+            TokenKind::BangEqual,
+            TokenKind::EqualEqual,
+            TokenKind::EqualEqualEqual,
+        ]) {
             let operator = self.previous();
             let right = self.comparison()?;
             expr = Box::new(Binary::new(expr, operator, right, self.current));
@@ -295,7 +299,12 @@ impl Parser {
 
     fn comparison(&mut self) -> Result<EXPR, Traceback> {
         let mut expr = self.term()?;
-        while self.match_token(vec![TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) {
+        while self.match_token(vec![
+            TokenKind::Greater,
+            TokenKind::GreaterEqual,
+            TokenKind::Less,
+            TokenKind::LessEqual,
+        ]) {
             let operator = self.previous();
             let right = self.term()?;
             expr = Box::new(Binary::new(expr, operator, right, self.current));
@@ -338,7 +347,8 @@ impl Parser {
             if self.match_token(vec![TokenKind::LeftParen]) {
                 expr = self.finish_call(expr)?;
             } else if self.match_token(vec![TokenKind::Dot]) {
-                let name = self.consume(TokenKind::Identifier, "Expect property name after '.'.")?;
+                let name =
+                    self.consume(TokenKind::Identifier, "Expect property name after '.'.")?;
                 expr = Box::new(Get::new(expr, name, self.current));
             } else {
                 break;
@@ -360,7 +370,13 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<EXPR, Traceback> {
-        if self.match_token(vec![TokenKind::Number, TokenKind::Stringue, TokenKind::False, TokenKind::True, TokenKind::Nil]) {
+        if self.match_token(vec![
+            TokenKind::Number,
+            TokenKind::Stringue,
+            TokenKind::False,
+            TokenKind::True,
+            TokenKind::Nil,
+        ]) {
             return Ok(Box::new(Literal::new(self.previous(), self.current)));
         }
         if self.match_token(vec![TokenKind::Pass]) {
@@ -396,7 +412,11 @@ impl Parser {
             return Ok(Box::new(Super::new(keyword, method, self.current)));
         }
 
-        Err(Traceback{pos: self.peek().pos.unwrap_or_default(), message: Some("Expect expression.".to_string()), ..Default::default()})
+        Err(Traceback {
+            pos: self.peek().pos.unwrap_or_default(),
+            message: Some("Expect expression.".to_string()),
+            ..Default::default()
+        })
     }
 
     fn empty_expression(&mut self) -> Result<EXPR, Traceback> {
@@ -406,9 +426,10 @@ impl Parser {
     }
 
     fn empty_statement(&mut self) -> Result<STMT, Traceback> {
-        Ok(Box::new(ExpressionStatement{expression:self.empty_expression()?}))
+        Ok(Box::new(ExpressionStatement {
+            expression: self.empty_expression()?,
+        }))
     }
-
 
     fn match_token(&mut self, token_types: Vec<TokenKind>) -> bool {
         for token_type in token_types {
@@ -431,7 +452,10 @@ impl Parser {
         if self.is_at_end() {
             return false;
         }
-        token_types.iter().zip(self.tokens.iter().skip(self.current)).all(|(a, b)| a == &b.kind)
+        token_types
+            .iter()
+            .zip(self.tokens.iter().skip(self.current))
+            .all(|(a, b)| a == &b.kind)
     }
 
     fn advance(&mut self) -> Token {
@@ -460,7 +484,6 @@ impl Parser {
             self.tokens[self.current - 1].clone()
         }
     }
-
 
     fn consume(&mut self, token_type: TokenKind, message: &str) -> Result<Token, Traceback> {
         // special case to allow multiple newlines

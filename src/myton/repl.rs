@@ -1,7 +1,7 @@
-use termion::{event::Key, raw::RawTerminal};
+use std::io::{stdin, stdout, Stdout, Write};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use std::io::{stdin, stdout, Stdout, Write};
+use termion::{event::Key, raw::RawTerminal};
 
 const FORBIDENT_REPL_CHARS: &str = "°éèçàù²µù£¤§¨¹̣̣̣̣̣·´¡⅛£$⅜⅝⅞™±°¬¿°¯ˇ˘˙÷×˝";
 const PROMPT: &str = ">>> ";
@@ -56,14 +56,15 @@ impl Repl {
 
     fn clear_line(&mut self) {
         let prompt_len = PROMPT.len() as u16;
-        print!("{}{}{}",
+        print!(
+            "{}{}{}",
             termion::cursor::Goto(prompt_len, self.cursor.1),
             termion::clear::AfterCursor,
             termion::cursor::Goto(prompt_len, self.cursor.1)
         );
         self.cursor.0 = prompt_len + 1;
     }
-    
+
     fn execute_buffer(&mut self) {
         self.newline();
         self.cursor.0 = 1;
@@ -92,11 +93,15 @@ impl Repl {
     }
 
     fn print(&mut self, s: String) {
-        print!("{}{}", termion::cursor::Goto(self.cursor.0, self.cursor.1 ), s);
+        print!(
+            "{}{}",
+            termion::cursor::Goto(self.cursor.0, self.cursor.1),
+            s
+        );
         self.cursor.0 += s.len() as u16;
         self.flush();
     }
-    
+
     pub fn println(&mut self, s: String) {
         for line in s.lines() {
             self.print(line.to_string());
@@ -109,7 +114,7 @@ impl Repl {
         self.println(s);
         print!("{}", termion::color::Fg(termion::color::Reset));
     }
-    
+
     pub fn skiplines(&mut self, n: u16) {
         self.cursor.1 = (self.cursor.1 + n) % self.term_size.1;
         self.update_cursor();
@@ -128,34 +133,34 @@ impl Iterator for Repl {
                     if let Some(s) = self.input_history.up() {
                         self.buffer.replace(s);
                     }
-                },
+                }
                 Key::Down => {
                     if let Some(s) = self.input_history.down() {
                         self.buffer.replace(s);
                     }
-                },
+                }
                 Key::Left => {
                     self.buffer.left();
-                },
+                }
                 Key::Right => {
                     self.buffer.right();
-                },
+                }
                 Key::Backspace => {
                     self.buffer.backspace();
-                },
+                }
                 Key::Char('\n') => {
                     self.execute_buffer();
                     return Some(self.buffer.buffer.clone());
-                },
+                }
                 Key::Char(c) => {
                     if !FORBIDENT_REPL_CHARS.contains(c) {
                         self.buffer.insert(c);
                     }
-                },
+                }
                 Key::Ctrl('c') => {
                     self.buffer.clear();
                     self.input_history.reset();
-                },
+                }
                 Key::Ctrl('d') => {
                     if self.buffer.is_empty() {
                         self.exit();
@@ -164,10 +169,10 @@ impl Iterator for Repl {
                         self.buffer.clear();
                         self.input_history.reset();
                     }
-                },
+                }
                 Key::Ctrl('a') => {
                     self.buffer.home();
-                },
+                }
                 _ => {}
             }
             self.update_buffer();

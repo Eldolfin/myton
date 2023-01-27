@@ -1,17 +1,17 @@
-use std::collections::HashMap;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::io::Write;
+use std::rc::Rc;
 
-use super::environment::{Env, EnvVariable, make_env_enclosed};
-use super::MyWrite;
-use super::expression::{EXPR, Variable, Evaluable};
-use super::traceback::Traceback;
-use super::token::Token;
-use super::types::DynValue;
+use super::class::Class;
+use super::environment::{make_env_enclosed, Env, EnvVariable};
+use super::expression::{Evaluable, Variable, EXPR};
 use super::functions::Function;
 use super::resolver::Resolvable;
-use super::class::Class;
+use super::token::Token;
+use super::traceback::Traceback;
+use super::types::DynValue;
+use super::MyWrite;
 
 pub trait Executable {
     fn execute(&self, env: &Env) -> Result<(), Traceback>;
@@ -42,7 +42,6 @@ pub struct ForeachStatement {
     pub body: STMT,
 }
 
-
 pub struct PrintStatement {
     pub expression: EXPR,
     pub output: Rc<RefCell<Box<dyn MyWrite>>>,
@@ -64,7 +63,7 @@ pub struct FunctionStatementInner {
 }
 
 pub struct FunctionStatement {
-    pub inner: Rc<RefCell<FunctionStatementInner>>
+    pub inner: Rc<RefCell<FunctionStatementInner>>,
 }
 
 pub struct ReturnStatement {
@@ -108,12 +107,14 @@ impl Executable for IfStatement {
 impl Executable for PrintStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let value = self.expression.eval(env)?.as_string();
-        
+
         let line_nb = value.lines().count();
-        env.borrow().get_env_var(EnvVariable::NewLines).increment_by(line_nb as f64);
-        
+        env.borrow()
+            .get_env_var(EnvVariable::NewLines)
+            .increment_by(line_nb as f64);
+
         writeln!(self.output.borrow_mut(), "{}", value).unwrap();
-        
+
         Ok(())
     }
 }
@@ -158,7 +159,8 @@ impl Executable for ForeachStatement {
         } else {
             Err(Traceback {
                 message: Some(format!("'{}' object is not iterable", list.tipe)),
-                ..Default::default()})
+                ..Default::default()
+            })
         }
     }
 }
@@ -167,7 +169,8 @@ impl Executable for FunctionStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let name = self.inner.borrow().name.clone();
 
-        let function = DynValue::from_function(Function::new(self.clone(), env.clone()), name.value.clone());
+        let function =
+            DynValue::from_function(Function::new(self.clone(), env.clone()), name.value.clone());
 
         env.borrow_mut().set(name.value, function);
 
@@ -187,7 +190,6 @@ impl FunctionStatement {
     }
 }
 
-
 impl Executable for ReturnStatement {
     fn execute(&self, env: &Env) -> Result<(), Traceback> {
         Err(Traceback::from_return_value(
@@ -195,7 +197,7 @@ impl Executable for ReturnStatement {
                 expr.eval(env)?
             } else {
                 DynValue::none()
-            }
+            },
         ))
     }
 }
@@ -227,17 +229,21 @@ impl Executable for NonlocalStatement {
 }
 
 impl Executable for ClassStatement {
-   fn execute(&self, env: &Env) -> Result<(), Traceback> {
+    fn execute(&self, env: &Env) -> Result<(), Traceback> {
         let mut env = env.clone();
         let superclass = if let Some(superclass_stmt) = &self.superclass {
             let superclass = superclass_stmt.eval(&env)?;
             if let Some(superclass) = superclass.as_class() {
                 env = make_env_enclosed(env.clone());
-                env.borrow_mut().set("super".to_string(), DynValue::from(superclass.clone()));
+                env.borrow_mut()
+                    .set("super".to_string(), DynValue::from(superclass.clone()));
                 Some(superclass)
             } else {
                 return Err(Traceback {
-                    message: Some(format!("class cannot inherit from non-class '{}'", superclass.tipe)),
+                    message: Some(format!(
+                        "class cannot inherit from non-class '{}'",
+                        superclass.tipe
+                    )),
                     pos: superclass_stmt.name.pos.unwrap(),
                     ..Default::default()
                 });
@@ -245,24 +251,28 @@ impl Executable for ClassStatement {
         } else {
             None
         };
-        
-        let methods : HashMap<String, Function> = self.methods.iter().map(|method| {
-            let name = method.inner.borrow().name.clone();
-            let function = Function::new(method.clone(), env.clone());
-            (name.value, function)
-        }).collect();
+
+        let methods: HashMap<String, Function> = self
+            .methods
+            .iter()
+            .map(|method| {
+                let name = method.inner.borrow().name.clone();
+                let function = Function::new(method.clone(), env.clone());
+                (name.value, function)
+            })
+            .collect();
 
         if superclass.is_some() {
             let enclosing = env.borrow().enclosing.clone().unwrap();
             env = enclosing;
         }
 
-        
         let class = Class::new(self.name.value.clone(), methods, superclass);
 
-        env.borrow_mut().set(self.name.value.clone(), DynValue::from(class));
+        env.borrow_mut()
+            .set(self.name.value.clone(), DynValue::from(class));
         Ok(())
-   } 
+    }
 }
 
 impl ClassStatement {

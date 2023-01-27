@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::functions::{Callable, Function};
-use super::types::DynValue;
-use super::traceback::Traceback;
 use super::environment::Env;
+use super::functions::{Callable, Function};
+use super::traceback::Traceback;
+use super::types::DynValue;
 
 #[derive(Clone)]
 pub struct Class {
@@ -21,7 +21,11 @@ pub struct Instance {
 }
 
 impl Class {
-    pub fn new(name: String, methods: HashMap<String, Function>, superclass: Option<Class>) -> Self {
+    pub fn new(
+        name: String,
+        methods: HashMap<String, Function>,
+        superclass: Option<Class>,
+    ) -> Self {
         Self {
             name,
             methods,
@@ -74,15 +78,13 @@ pub fn get_from_refcell(instance: Rc<RefCell<Instance>>, name: &str) -> Option<D
     }
 }
 
-
 impl Callable for Class {
     fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
         let refcell = Rc::new(RefCell::new(Instance::new(self.clone())));
 
-        if let Some(initializer) = self.find_method("__init__"){
+        if let Some(initializer) = self.find_method("__init__") {
             initializer.bind(refcell.clone()).call(env, args)?;
         }
-
 
         Ok(DynValue::from(refcell))
     }

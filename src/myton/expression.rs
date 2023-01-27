@@ -2,10 +2,10 @@ use std::any::Any;
 
 use super::class::get_from_refcell;
 use super::environment::Env;
-use super::token::{Token, TokenKind};
-use super::types::{TypeKind, DynValue};
-use super::traceback::Traceback;
 use super::resolver::{Resolvable, UUID};
+use super::token::{Token, TokenKind};
+use super::traceback::Traceback;
+use super::types::{DynValue, TypeKind};
 
 pub trait Evaluable {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback>;
@@ -129,9 +129,9 @@ impl Unary {
         };
 
         Unary {
-            operator: Operator{token, kind: type_},
+            operator: Operator { token, kind: type_ },
             right,
-            uuid
+            uuid,
         }
     }
 }
@@ -156,7 +156,7 @@ impl Binary {
 
         Binary {
             left,
-            operator: Operator{token, kind: type_},
+            operator: Operator { token, kind: type_ },
             right,
             uuid,
         }
@@ -173,7 +173,7 @@ impl Logical {
 
         Logical {
             left,
-            kind, 
+            kind,
             right,
             uuid,
         }
@@ -181,23 +181,25 @@ impl Logical {
 }
 
 impl Evaluable for Literal {
-    fn eval (&self, _: &Env) -> Result<DynValue, Traceback> {
+    fn eval(&self, _: &Env) -> Result<DynValue, Traceback> {
         Ok(DynValue::from_token(&self.token))
     }
 }
 
 impl Evaluable for List {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
-        Ok(DynValue::from_vec(self.elements.iter().map(|e| e.eval(env)).collect::<Result<Vec<DynValue>, Traceback>>()?))
+        Ok(DynValue::from_vec(
+            self.elements
+                .iter()
+                .map(|e| e.eval(env))
+                .collect::<Result<Vec<DynValue>, Traceback>>()?,
+        ))
     }
 }
 
 impl List {
     pub fn new(elements: Vec<EXPR>, uuid: UUID) -> List {
-        List {
-            elements,
-            uuid,
-        }
+        List { elements, uuid }
     }
 }
 
@@ -208,14 +210,14 @@ impl Literal {
 }
 
 impl Evaluable for Variable {
-    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         match env.borrow().get_from_variable(self) {
             Some(value) => Ok(value),
-            None => Err(Traceback { 
+            None => Err(Traceback {
                 message: Some(format!("Undefined variable '{}'", self.name.value)),
                 pos: self.name.pos.unwrap(),
                 ..Default::default()
-            })
+            }),
         }
     }
 }
@@ -227,7 +229,7 @@ impl Variable {
 }
 
 impl Evaluable for Grouping {
-    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         Ok(self.expression.eval(env)?)
     }
 }
@@ -239,19 +241,21 @@ impl Grouping {
 }
 
 impl Evaluable for Unary {
-    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let right = self.right.eval(env)?;
 
         match self.operator.kind {
             OperatorKind::Negate => {
                 if !right.is_number() {
-                    return Err(Traceback { message: Some(format!("bad operand type for unary -: '{}'", right.tipe)), pos: self.operator.token.pos.unwrap(), ..Default::default()});
+                    return Err(Traceback {
+                        message: Some(format!("bad operand type for unary -: '{}'", right.tipe)),
+                        pos: self.operator.token.pos.unwrap(),
+                        ..Default::default()
+                    });
                 }
                 Ok(DynValue::from(-right.as_number()))
-            },
-            OperatorKind::Not => {
-                Ok(DynValue::from(!right.as_bool()))
-            },
+            }
+            OperatorKind::Not => Ok(DynValue::from(!right.as_bool())),
             _ => panic!("Invalid token type for unary operator"),
         }
     }
@@ -260,14 +264,19 @@ impl Evaluable for Unary {
 impl Binary {
     fn check_types(&self, left: DynValue, right: DynValue) -> bool {
         match self.operator.kind {
-            OperatorKind::Minus | OperatorKind::Divide | OperatorKind::Modulo  => left.is_number() && right.is_number(),
+            OperatorKind::Minus | OperatorKind::Divide | OperatorKind::Modulo => {
+                left.is_number() && right.is_number()
+            }
             OperatorKind::Multiply => (!left.is_nil()) && right.is_number(),
-            OperatorKind::Greater | OperatorKind::GreaterEqual | OperatorKind::Less | 
-                OperatorKind::LessEqual => 
-                !left.is_nil() && 
-                    (left.tipe == right.tipe || 
-                    left.tipe == TypeKind::Number && right.tipe == TypeKind::Boolean || 
-                    left.tipe == TypeKind::Boolean && right.tipe == TypeKind::Number),
+            OperatorKind::Greater
+            | OperatorKind::GreaterEqual
+            | OperatorKind::Less
+            | OperatorKind::LessEqual => {
+                !left.is_nil()
+                    && (left.tipe == right.tipe
+                        || left.tipe == TypeKind::Number && right.tipe == TypeKind::Boolean
+                        || left.tipe == TypeKind::Boolean && right.tipe == TypeKind::Number)
+            }
             OperatorKind::Plus => !(left.is_nil() || right.is_nil()),
             OperatorKind::Equal | OperatorKind::NotEqual | OperatorKind::StrictEqual => true,
             _ => panic!("Invalid token type for binary operator"),
@@ -276,12 +285,19 @@ impl Binary {
 }
 
 impl Evaluable for Binary {
-    fn eval (&self, env: &Env) -> Result<DynValue, Traceback> {
+    fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let left = self.left.eval(env)?;
         let right = self.right.eval(env)?;
 
         if !self.check_types(left.clone(), right.clone()) {
-            return Err(Traceback { message: Some(format!("unsupported operand type(s) for {}: '{}' and '{}'", self.operator.token.value, left.tipe, right.tipe)), pos: self.operator.token.pos.unwrap(), ..Default::default()});
+            return Err(Traceback {
+                message: Some(format!(
+                    "unsupported operand type(s) for {}: '{}' and '{}'",
+                    self.operator.token.value, left.tipe, right.tipe
+                )),
+                pos: self.operator.token.pos.unwrap(),
+                ..Default::default()
+            });
         }
 
         match self.operator.kind {
@@ -291,48 +307,37 @@ impl Evaluable for Binary {
                 } else {
                     Ok(DynValue::from(left.as_string() + &right.as_string()))
                 }
-            },
-            OperatorKind::Minus => {
-                Ok(DynValue::from(left.as_number() - right.as_number()))
-            },
-            OperatorKind::Multiply => {
-                match left.tipe {
-                    TypeKind::Number => Ok(DynValue::from(left.as_number() * right.as_number())),
-                    TypeKind::Stringue => Ok(DynValue::from(left.as_string().repeat(right.as_number() as usize))),
-                    TypeKind::List => {let list = left.as_list().unwrap();
-                        let num = right.as_number() as usize;
-                        Ok(DynValue::from(list.iter().cycle().take(list.len() * num).cloned().collect::<Vec<DynValue>>()))
-                    }
-                    _ => panic!("Invalid left type for * operator"),
+            }
+            OperatorKind::Minus => Ok(DynValue::from(left.as_number() - right.as_number())),
+            OperatorKind::Multiply => match left.tipe {
+                TypeKind::Number => Ok(DynValue::from(left.as_number() * right.as_number())),
+                TypeKind::Stringue => Ok(DynValue::from(
+                    left.as_string().repeat(right.as_number() as usize),
+                )),
+                TypeKind::List => {
+                    let list = left.as_list().unwrap();
+                    let num = right.as_number() as usize;
+                    Ok(DynValue::from(
+                        list.iter()
+                            .cycle()
+                            .take(list.len() * num)
+                            .cloned()
+                            .collect::<Vec<DynValue>>(),
+                    ))
                 }
+                _ => panic!("Invalid left type for * operator"),
             },
-            OperatorKind::Divide => {
-                Ok(DynValue::from(left.as_number() / right.as_number()))
-            },
-            OperatorKind::Modulo => {
-                Ok(DynValue::from(left.as_number() % right.as_number()))
-            },
-            OperatorKind::Equal => {
-                Ok(DynValue::from(left == right))
-            },
+            OperatorKind::Divide => Ok(DynValue::from(left.as_number() / right.as_number())),
+            OperatorKind::Modulo => Ok(DynValue::from(left.as_number() % right.as_number())),
+            OperatorKind::Equal => Ok(DynValue::from(left == right)),
             OperatorKind::StrictEqual => {
                 Ok(DynValue::from(left.tipe == right.tipe && left == right))
-            },
-            OperatorKind::NotEqual => {
-                Ok(DynValue::from(left != right))
-            },
-            OperatorKind::Greater => {
-                Ok(DynValue::from(left > right))
-            },
-            OperatorKind::GreaterEqual => {
-                Ok(DynValue::from(left >= right))
-            },
-            OperatorKind::Less => {
-                Ok(DynValue::from(left < right))
-            },
-            OperatorKind::LessEqual => {
-                Ok(DynValue::from(left <= right))
-            },
+            }
+            OperatorKind::NotEqual => Ok(DynValue::from(left != right)),
+            OperatorKind::Greater => Ok(DynValue::from(left > right)),
+            OperatorKind::GreaterEqual => Ok(DynValue::from(left >= right)),
+            OperatorKind::Less => Ok(DynValue::from(left < right)),
+            OperatorKind::LessEqual => Ok(DynValue::from(left <= right)),
             _ => panic!("Invalid token type for binary operator"),
         }
     }
@@ -347,35 +352,42 @@ impl Evaluable for Logical {
                 if left.as_bool() {
                     return Ok(left);
                 }
-            },
+            }
             LogicalKind::And => {
                 if !left.as_bool() {
                     return Ok(left);
                 }
-            },
+            }
         }
 
         self.right.eval(env)
     }
 }
 
-
 impl Evaluable for Call {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
-        let args = self.arguments.iter().map(|arg| arg.eval(env)).collect::<Result<Vec<_>, _>>()?;
+        let args = self
+            .arguments
+            .iter()
+            .map(|arg| arg.eval(env))
+            .collect::<Result<Vec<_>, _>>()?;
         let maybe_callee = self.callee.eval(env)?;
 
         if let Some(callee) = maybe_callee.as_callable() {
             if args.len() != callee.arity() {
                 return Err(Traceback {
-                    message: Some(format!("Expected {} arguments but got {}", callee.arity(), args.len())),
+                    message: Some(format!(
+                        "Expected {} arguments but got {}",
+                        callee.arity(),
+                        args.len()
+                    )),
                     pos: self.paren.pos.unwrap(),
                     ..Default::default()
                 });
             }
             callee.call(env, args)
         } else {
-            Err(Traceback{
+            Err(Traceback {
                 message: Some(format!("'{}' object is not callable", maybe_callee.tipe)),
                 pos: self.paren.pos.unwrap(),
                 ..Default::default()
@@ -383,7 +395,6 @@ impl Evaluable for Call {
         }
     }
 }
-
 
 impl Call {
     pub fn new(callee: EXPR, paren: Token, arguments: Vec<EXPR>, uuid: UUID) -> Self {
@@ -405,14 +416,21 @@ impl Evaluable for Get {
                 return Ok(value);
             } else {
                 return Err(Traceback {
-                    message: Some(format!("'{}' object has no attribute '{}'", instance.borrow().class.name, self.name.value)),
+                    message: Some(format!(
+                        "'{}' object has no attribute '{}'",
+                        instance.borrow().class.name,
+                        self.name.value
+                    )),
                     pos: self.name.pos.unwrap(),
                     ..Default::default()
                 });
             }
         } else {
             Err(Traceback {
-                message: Some(format!("'{}' object has no attribute '{}'", object.tipe, self.name.value)),
+                message: Some(format!(
+                    "'{}' object has no attribute '{}'",
+                    object.tipe, self.name.value
+                )),
                 pos: self.name.pos.unwrap(),
                 ..Default::default()
             })
@@ -422,11 +440,7 @@ impl Evaluable for Get {
 
 impl Get {
     pub fn new(object: EXPR, name: Token, uuid: UUID) -> Self {
-        Self {
-            object,
-            name,
-            uuid,
-        }
+        Self { object, name, uuid }
     }
 }
 
@@ -438,11 +452,16 @@ impl Evaluable for Set {
 
         if let Some(instance) = borrow {
             let value = self.value.eval(env)?;
-            instance.borrow_mut().set(self.name.value.clone(), value.clone());
+            instance
+                .borrow_mut()
+                .set(self.name.value.clone(), value.clone());
             Ok(value)
         } else {
             Err(Traceback {
-                message: Some(format!("'{}' object has no attribute '{}'", object.tipe, self.name.value)),
+                message: Some(format!(
+                    "'{}' object has no attribute '{}'",
+                    object.tipe, self.name.value
+                )),
                 pos: self.name.pos.unwrap(),
                 ..Default::default()
             })
@@ -469,10 +488,7 @@ impl Evaluable for This {
 
 impl This {
     pub fn new(keyword: Token, uuid: UUID) -> Self {
-        Self {
-            keyword,
-            uuid,
-        }
+        Self { keyword, uuid }
     }
 }
 
@@ -480,12 +496,18 @@ impl Evaluable for Super {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let var = Variable::new(self.keyword.clone(), self.uuid);
 
-        // unwraps are safe because we check for 
+        // unwraps are safe because we check for
         // errors in the resolver
-        let superclass = env.borrow().get_from_variable(&var).unwrap().as_class().unwrap();
+        let superclass = env
+            .borrow()
+            .get_from_variable(&var)
+            .unwrap()
+            .as_class()
+            .unwrap();
 
         // :(
-        let object = env.borrow()
+        let object = env
+            .borrow()
             .enclosing
             .as_ref()
             .unwrap()
@@ -525,7 +547,7 @@ macro_rules! impl_expr {
                 fn uuid(&self) -> UUID {
                     self.uuid
                 }
-                
+
                 fn as_any(&self) -> &dyn Any {
                     self
                 }

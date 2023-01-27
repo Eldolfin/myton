@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use super::expression::{Variable, Expression};
+use super::expression::{Expression, Variable};
 use super::resolver::UUID;
 use super::types::DynValue;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub type Env = Rc<RefCell<Environment>>;
 
@@ -12,8 +12,8 @@ pub struct Environment {
     values: HashMap<String, DynValue>,
     pub enclosing: Option<Env>,
     resolved_locals: Option<HashMap<UUID, usize>>,
-    globals :Vec<String>,
-    non_locals :Vec<String>,
+    globals: Vec<String>,
+    non_locals: Vec<String>,
 }
 
 impl Environment {
@@ -46,7 +46,7 @@ impl Environment {
             None
         }
     }
-    
+
     // tries to get the value from the resolved
     // locals, if it fails, it tries to get it
     // with the name, with get
@@ -83,9 +83,12 @@ impl Environment {
 
     pub fn get_env_var(&self, var: EnvVariable) -> DynValue {
         let name = var.get_name();
-        
+
         self.get(name.to_string()).unwrap_or_else(|| {
-            panic!("Undefined environment variable variable '{}'", name.to_string());
+            panic!(
+                "Undefined environment variable variable '{}'",
+                name.to_string()
+            );
         })
     }
 
@@ -94,7 +97,7 @@ impl Environment {
         self.set_global_variable(name, value);
     }
 
-    pub fn ancestor(&self, distance:usize) -> Option<Env> {
+    pub fn ancestor(&self, distance: usize) -> Option<Env> {
         if distance == 0 {
             None
         } else {
@@ -147,10 +150,10 @@ impl EnvVariable {
 mod tests {
     use crate::myton::lexer::token::{Token, TokenKind};
 
-    use super::*;
-    use super::super::types::{DynValue, TypeKind};
-    use super::super::native_functions::native_clock;
     use super::super::functions::NativeFunction;
+    use super::super::native_functions::native_clock;
+    use super::super::types::{DynValue, TypeKind};
+    use super::*;
 
     #[test]
     fn test_get() {
@@ -164,7 +167,14 @@ mod tests {
 
     #[test]
     fn test_builtin_function() {
-        let value = DynValue::new_with_name(Box::new(NativeFunction{ nb_args: 0, func: native_clock }), TypeKind::NativeFunction, "clock".to_string());
+        let value = DynValue::new_with_name(
+            Box::new(NativeFunction {
+                nb_args: 0,
+                func: native_clock,
+            }),
+            TypeKind::NativeFunction,
+            "clock".to_string(),
+        );
         let env = make_env();
         env.borrow_mut().set("clock".to_string(), value);
 
@@ -180,7 +190,15 @@ mod tests {
 
         assert!(value.as_callable().is_some());
 
-        assert!(value.as_callable().unwrap().call(&env, vec![]).unwrap().as_number() > 1673047730.0);
+        assert!(
+            value
+                .as_callable()
+                .unwrap()
+                .call(&env, vec![])
+                .unwrap()
+                .as_number()
+                > 1673047730.0
+        );
     }
 
     #[test]
@@ -189,47 +207,79 @@ mod tests {
         let local = make_env_enclosed(global.clone());
         let mut borrowed_local = local.borrow_mut();
 
-        global.borrow_mut().set("a".to_string(), DynValue::from(1.0));
-        global.borrow_mut().set("c".to_string(), DynValue::from(2.0));
+        global
+            .borrow_mut()
+            .set("a".to_string(), DynValue::from(1.0));
+        global
+            .borrow_mut()
+            .set("c".to_string(), DynValue::from(2.0));
 
         borrowed_local.set("a".to_string(), DynValue::from(3.0));
         borrowed_local.set("b".to_string(), DynValue::from(2.0));
 
         assert!(borrowed_local.get("a".to_string()).is_some());
         assert!(borrowed_local.get("a".to_string()).unwrap().is_number());
-        assert_eq!(borrowed_local.get("a".to_string()).unwrap().as_number(), 3.0);
+        assert_eq!(
+            borrowed_local.get("a".to_string()).unwrap().as_number(),
+            3.0
+        );
 
         assert!(borrowed_local.get("b".to_string()).is_some());
         assert!(borrowed_local.get("b".to_string()).unwrap().is_number());
-        assert_eq!(borrowed_local.get("b".to_string()).unwrap().as_number(), 2.0);
+        assert_eq!(
+            borrowed_local.get("b".to_string()).unwrap().as_number(),
+            2.0
+        );
 
         assert!(borrowed_local.get("c".to_string()).is_some());
         assert!(borrowed_local.get("c".to_string()).unwrap().is_number());
-        assert_eq!(borrowed_local.get("c".to_string()).unwrap().as_number(), 2.0);
+        assert_eq!(
+            borrowed_local.get("c".to_string()).unwrap().as_number(),
+            2.0
+        );
 
         assert!(borrowed_local.get("d".to_string()).is_none());
 
         let borrowed_global = global.borrow_mut();
         assert!(borrowed_global.get("a".to_string()).is_some());
         assert!(borrowed_global.get("a".to_string()).unwrap().is_number());
-        assert_eq!(borrowed_global.get("a".to_string()).unwrap().as_number(), 1.0);
+        assert_eq!(
+            borrowed_global.get("a".to_string()).unwrap().as_number(),
+            1.0
+        );
     }
 
     #[test]
     fn test_env_var() {
         let env = make_env();
 
-        env.borrow_mut().set_env_var(EnvVariable::NewLines, DynValue::from(1.0));
+        env.borrow_mut()
+            .set_env_var(EnvVariable::NewLines, DynValue::from(1.0));
 
-        assert_eq!(env.borrow_mut().get_env_var(EnvVariable::NewLines).as_number(), 1.0);
+        assert_eq!(
+            env.borrow_mut()
+                .get_env_var(EnvVariable::NewLines)
+                .as_number(),
+            1.0
+        );
 
         let enclosed_env = make_env_enclosed(env.clone());
         let mut borrowed_enclosed_env = enclosed_env.borrow_mut();
 
-        assert!(borrowed_enclosed_env.get_env_var(EnvVariable::NewLines).as_number() == 1.0);
+        assert!(
+            borrowed_enclosed_env
+                .get_env_var(EnvVariable::NewLines)
+                .as_number()
+                == 1.0
+        );
         borrowed_enclosed_env.set_env_var(EnvVariable::NewLines, DynValue::from(2.0));
 
-        assert!(env.borrow_mut().get_env_var(EnvVariable::NewLines).as_number() == 2.0);
+        assert!(
+            env.borrow_mut()
+                .get_env_var(EnvVariable::NewLines)
+                .as_number()
+                == 2.0
+        );
     }
 
     #[test]
@@ -248,19 +298,79 @@ mod tests {
 
         assert!(local.borrow().ancestor(0).is_none());
         assert!(local.borrow().ancestor(1).is_some());
-        assert!(local.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).is_some());
-        assert_eq!(local.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).unwrap().as_number(), 1.0);
+        assert!(local
+            .borrow()
+            .ancestor(1)
+            .unwrap()
+            .borrow()
+            .get("a".to_string())
+            .is_some());
+        assert_eq!(
+            local
+                .borrow()
+                .ancestor(1)
+                .unwrap()
+                .borrow()
+                .get("a".to_string())
+                .unwrap()
+                .as_number(),
+            1.0
+        );
         assert!(local.borrow().ancestor(2).is_none());
 
         assert!(local2.borrow().ancestor(0).is_none());
         assert!(local2.borrow().ancestor(1).is_some());
-        assert!(local2.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).is_some());
-        assert_eq!(local2.borrow().ancestor(1).unwrap().borrow().get("a".to_string()).unwrap().as_number(), 3.0);
-        assert!(local2.borrow().ancestor(1).unwrap().borrow().get("b".to_string()).is_some());
+        assert!(local2
+            .borrow()
+            .ancestor(1)
+            .unwrap()
+            .borrow()
+            .get("a".to_string())
+            .is_some());
+        assert_eq!(
+            local2
+                .borrow()
+                .ancestor(1)
+                .unwrap()
+                .borrow()
+                .get("a".to_string())
+                .unwrap()
+                .as_number(),
+            3.0
+        );
+        assert!(local2
+            .borrow()
+            .ancestor(1)
+            .unwrap()
+            .borrow()
+            .get("b".to_string())
+            .is_some());
         assert!(local2.borrow().ancestor(2).is_some());
-        assert!(local2.borrow().ancestor(2).unwrap().borrow().get("a".to_string()).is_some());
-        assert_eq!(local2.borrow().ancestor(2).unwrap().borrow().get("a".to_string()).unwrap().as_number(), 1.0);
-        assert!(local2.borrow().ancestor(2).unwrap().borrow().get("b".to_string()).is_none());
+        assert!(local2
+            .borrow()
+            .ancestor(2)
+            .unwrap()
+            .borrow()
+            .get("a".to_string())
+            .is_some());
+        assert_eq!(
+            local2
+                .borrow()
+                .ancestor(2)
+                .unwrap()
+                .borrow()
+                .get("a".to_string())
+                .unwrap()
+                .as_number(),
+            1.0
+        );
+        assert!(local2
+            .borrow()
+            .ancestor(2)
+            .unwrap()
+            .borrow()
+            .get("b".to_string())
+            .is_none());
     }
 
     #[test]
@@ -283,6 +393,9 @@ mod tests {
         env.borrow_mut().set("a".to_string(), DynValue::from(2.0));
 
         assert!(local.borrow().get_from_variable(&var).is_some());
-        assert_eq!(local.borrow().get_from_variable(&var).unwrap().as_number(), 2.0);
+        assert_eq!(
+            local.borrow().get_from_variable(&var).unwrap().as_number(),
+            2.0
+        );
     }
 }

@@ -1,7 +1,7 @@
 use strum_macros::EnumIter;
 
 #[derive(Debug, Clone)]
-pub struct Token{
+pub struct Token {
     pub kind: TokenKind,
     pub value: String,
     pub pos: Option<(usize, usize)>,
@@ -10,18 +10,53 @@ pub struct Token{
 
 #[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
-    LeftParen, RightParen, LeftBracket, RightBracket,
-    Comma, Dot, Plus, Minus, Slash, Star, Colon,
-    Identifier, Stringue, Number, Percent,
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    Comma,
+    Dot,
+    Plus,
+    Minus,
+    Slash,
+    Star,
+    Colon,
+    Identifier,
+    Stringue,
+    Number,
+    Percent,
 
-    BangEqual, Bang,
-    Equal, EqualEqual, EqualEqualEqual,
-    GreaterEqual, Greater,
-    LessEqual, Less,
+    BangEqual,
+    Bang,
+    Equal,
+    EqualEqual,
+    EqualEqualEqual,
+    GreaterEqual,
+    Greater,
+    LessEqual,
+    Less,
 
-    And, Class, Else, False, Def, For, If, Nil, Or, 
-    Print, Return, Super, Selph, True, While, Pass,
-    In, Break, Continue, Global, Nonlocal,
+    And,
+    Class,
+    Else,
+    False,
+    Def,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    Selph,
+    True,
+    While,
+    Pass,
+    In,
+    Break,
+    Continue,
+    Global,
+    Nonlocal,
 
     Comment,
     Space,
@@ -102,7 +137,6 @@ impl TokenKind {
             TokenKind::Continue => r"continue",
             TokenKind::Global => r"global",
             TokenKind::Nonlocal => r"nonlocal",
-
         }
     }
 }

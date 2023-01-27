@@ -3,7 +3,7 @@ mod myton;
 pub use crate::myton::Interpreter;
 use std::env::args;
 
-fn main(){
+fn main() {
     let args: Vec<String> = args().collect();
     let mut myton = Interpreter::new();
 

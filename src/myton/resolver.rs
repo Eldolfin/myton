@@ -1,19 +1,18 @@
-use super::statement::*;
 use super::expression::*;
+use super::statement::*;
 use super::token::Token;
 use super::traceback::Traceback;
 use super::traceback::TracebackKind;
 use std::collections::HashMap;
 
-
 type ResolveResult = Result<(), Traceback>;
 pub type UUID = usize;
 
 pub struct Resolver {
-    scopes :Vec<HashMap<String, bool>>,
-    pub locals :HashMap<UUID, usize>, // UUID -> depth
-    current_function :FunctionType,
-    current_class :ClassType,
+    scopes: Vec<HashMap<String, bool>>,
+    pub locals: HashMap<UUID, usize>, // UUID -> depth
+    current_function: FunctionType,
+    current_class: ClassType,
 }
 
 #[derive(Clone, Copy)]
@@ -33,8 +32,6 @@ enum ClassType {
 pub trait Resolvable {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult;
 }
-
-
 
 impl Resolver {
     pub fn new() -> Resolver {
@@ -62,10 +59,9 @@ impl Resolver {
     }
 
     fn stmt(&mut self, stmt: &STMT) -> ResolveResult {
-         stmt.resolve(self)
+        stmt.resolve(self)
     }
 
-    
     fn expression_stmt(&mut self, expr: &ExpressionStatement) -> ResolveResult {
         expr.expression.resolve(self)
     }
@@ -109,7 +105,7 @@ impl Resolver {
         //     }
         // }
 
-        let casted :EXPR = Box::new(expr.clone());
+        let casted: EXPR = Box::new(expr.clone());
 
         self.local(&casted, &expr.name.clone());
         Ok(())
@@ -131,8 +127,12 @@ impl Resolver {
         self.resolve_function(function, FunctionType::Function)
     }
 
-    fn resolve_function(&mut self, function: &FunctionStatement, tipe: FunctionType) -> ResolveResult {
-        let enclosing_function : FunctionType = self.current_function.clone();
+    fn resolve_function(
+        &mut self,
+        function: &FunctionStatement,
+        tipe: FunctionType,
+    ) -> ResolveResult {
+        let enclosing_function: FunctionType = self.current_function.clone();
         self.current_function = tipe;
 
         self.begin_scope();
@@ -198,9 +198,9 @@ impl Resolver {
     fn nonlocal(&mut self, _: &NonlocalStatement) -> ResolveResult {
         Ok(())
     }
-    
+
     fn class(&mut self, class: &ClassStatement) -> ResolveResult {
-        let enclosing_class  = self.current_class;
+        let enclosing_class = self.current_class;
         self.current_class = ClassType::Class;
 
         self.declare(&class.name)?;
@@ -220,11 +220,17 @@ impl Resolver {
             superclass.resolve(self)?;
 
             self.begin_scope();
-            self.scopes.last_mut().unwrap().insert("super".to_string(), true);
+            self.scopes
+                .last_mut()
+                .unwrap()
+                .insert("super".to_string(), true);
         }
 
         self.begin_scope();
-        self.scopes.last_mut().unwrap().insert("this".to_string(), true);
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .insert("this".to_string(), true);
 
         for method in &class.methods {
             let declaration = FunctionType::Method;
@@ -301,7 +307,7 @@ impl Resolver {
             });
         }
 
-        let casted :EXPR = Box::new(expr.clone());
+        let casted: EXPR = Box::new(expr.clone());
         let mut keyword = expr.keyword.clone();
 
         // because we allow multiple types of this keywords
@@ -330,13 +336,12 @@ impl Resolver {
             });
         }
 
-        let casted :EXPR = Box::new(expr.clone());
+        let casted: EXPR = Box::new(expr.clone());
 
         self.local(&casted, &expr.keyword);
         Ok(())
     }
 }
-
 
 impl Resolvable for FunctionStatement {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
@@ -349,7 +354,6 @@ impl Resolvable for ExpressionStatement {
         resolver.expression_stmt(self)
     }
 }
-
 
 impl Resolvable for VarStatement {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
@@ -375,7 +379,7 @@ impl Resolvable for ForeachStatement {
     }
 }
 
-impl Resolvable for WhileStatement{
+impl Resolvable for WhileStatement {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
         resolver.whyle(self)
     }
@@ -414,27 +418,27 @@ impl Resolvable for ClassStatement {
 // Expressions
 impl Resolvable for Binary {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
-        resolver.binary(self) 
+        resolver.binary(self)
     }
 }
 impl Resolvable for Logical {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
-        resolver.logical(self) 
+        resolver.logical(self)
     }
 }
 impl Resolvable for Call {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
-        resolver.call(self) 
+        resolver.call(self)
     }
 }
 impl Resolvable for Grouping {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
-        resolver.grouping(self) 
+        resolver.grouping(self)
     }
 }
 impl Resolvable for Literal {
     fn resolve(&self, resolver: &mut Resolver) -> ResolveResult {
-        resolver.literal(self) 
+        resolver.literal(self)
     }
 }
 
@@ -482,19 +486,19 @@ impl Resolvable for Super {
 
 #[cfg(test)]
 mod tests {
-    use crate::myton::{Interpreter, parser::Parser, lexer::Lexer};
+    use crate::myton::{lexer::Lexer, parser::Parser, Interpreter};
 
     #[test]
     fn test_variable_resolving() {
-        let code = 
-"a=\"global\"
+        let code = "a=\"global\"
 def f():
   def print_A():
     print(a)
   print_A()
   a=\"local\"
   print_A()
-f()".to_string();
+f()"
+        .to_string();
 
         let mut interpreter = Interpreter::new();
         let mut lexer = Lexer::new(code);
@@ -510,10 +514,10 @@ f()".to_string();
 
         let mut message = String::new();
 
-        for (u,d) in &locals {
-             message += &format!("{:?} {:?}\n", u , d).to_string();
+        for (u, d) in &locals {
+            message += &format!("{:?} {:?}\n", u, d).to_string();
         }
-        
+
         // assert!(false, "{}", message);
 
         assert_eq!(locals[&19], 2);

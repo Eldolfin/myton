@@ -1,32 +1,32 @@
-mod lexer;
-mod parser;
-mod errors;
-mod types;
-mod traceback;
-mod repl;
-mod environment;
-mod native_functions;
-mod functions;
 mod class;
-mod resolver;
+mod environment;
+mod errors;
 mod expression;
+mod functions;
+mod lexer;
+mod native_functions;
+mod parser;
+mod repl;
+mod resolver;
 mod statement;
+mod traceback;
+mod types;
 
 pub use errors::had_error;
 
-use lexer::*;
+use environment::{make_env, Env, EnvVariable};
 use errors::report_trace;
-use parser::Parser;
-use traceback::Traceback;
-use repl::Repl;
-use environment::{Env,make_env, EnvVariable};
-use std::io::prelude::*;
+use lexer::*;
 use native_functions::define_globals;
-use types::DynValue;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::io::{Write, Stdout, stdout};
+use parser::Parser;
+use repl::Repl;
 use resolver::Resolver;
+use std::cell::RefCell;
+use std::io::prelude::*;
+use std::io::{stdout, Stdout, Write};
+use std::rc::Rc;
+use traceback::Traceback;
+use types::DynValue;
 
 const DEBUG_LEXER: bool = false;
 
@@ -49,7 +49,7 @@ impl Interpreter {
         let res = Interpreter {
             environment: env,
             output,
-            resolver
+            resolver,
         };
 
         return res;
@@ -59,7 +59,7 @@ impl Interpreter {
         if let Ok(mut file) = std::fs::File::open(path) {
             let mut contents = String::new();
             file.read_to_string(&mut contents).unwrap();
-            
+
             self.debug_lexer(contents.to_string());
 
             if let Err(e) = self.run(contents) {
@@ -72,21 +72,27 @@ impl Interpreter {
 
     pub fn run_repl(&mut self) {
         let mut repl = Repl::new();
-        
+
         while let Some(source) = repl.next() {
-            self.environment.borrow_mut().set_env_var(EnvVariable::NewLines, DynValue::from(0));
+            self.environment
+                .borrow_mut()
+                .set_env_var(EnvVariable::NewLines, DynValue::from(0));
 
             if let Err(result) = self.run(source.clone()) {
                 repl.printerr(result);
             } else {
-                let skip = self.environment.borrow().get_env_var(EnvVariable::NewLines).as_number() as u16;
+                let skip = self
+                    .environment
+                    .borrow()
+                    .get_env_var(EnvVariable::NewLines)
+                    .as_number() as u16;
                 repl.skiplines(skip);
             }
         }
     }
 
     fn run(&mut self, source: String) -> Result<(), String> {
-        if let Err(mut traceback) = self.run_with_traceback(source.clone()){
+        if let Err(mut traceback) = self.run_with_traceback(source.clone()) {
             traceback.code = Some(source);
             Err(report_trace(traceback))
         } else {
@@ -104,7 +110,9 @@ impl Interpreter {
             stmt.resolve(&mut self.resolver)?;
         }
 
-        self.environment.borrow_mut().set_resolved_locals(self.resolver.locals.clone());
+        self.environment
+            .borrow_mut()
+            .set_resolved_locals(self.resolver.locals.clone());
 
         for stmt in &program {
             stmt.execute(&self.environment)?;
@@ -135,9 +143,7 @@ pub fn run_to_string(source: String) -> String {
     return output.borrow().get_string().unwrap();
 }
 
-
-
-pub trait MyWrite : Write {
+pub trait MyWrite: Write {
     fn get_string(&self) -> Option<String>;
 }
 
@@ -157,10 +163,15 @@ impl MyWrite for Stdout {
 mod tests {
     use super::*;
 
-    fn test_run_case(test_case_name : &str, source: &str, expected: &str) {
+    fn test_run_case(test_case_name: &str, source: &str, expected: &str) {
         let output = run_to_string(source.to_string());
 
-        assert_eq!(output.as_str(), expected, "Test case \"{}\" failed", test_case_name);
+        assert_eq!(
+            output.as_str(),
+            expected,
+            "Test case \"{}\" failed",
+            test_case_name
+        );
     }
 
     #[test]
@@ -175,16 +186,24 @@ mod tests {
 
         test_run_case("simple re-assignment", "a = 1\na = 2\nprint a", "2\n");
 
-        test_run_case("simple foreach", r#"for a in [1,2,3]:
-                         print(a)"#, "1\n2\n3\n");
+        test_run_case(
+            "simple foreach",
+            r#"for a in [1,2,3]:
+                         print(a)"#,
+            "1\n2\n3\n",
+        );
 
-        test_run_case("simple while",
-                        r#"a=False
+        test_run_case(
+            "simple while",
+            r#"a=False
                          while a<10:
                            a=a+1
-                         print(a)"#, "10\n");
+                         print(a)"#,
+            "10\n",
+        );
 
-        test_run_case("collatz of 27",
+        test_run_case(
+            "collatz of 27",
             r#"n=27
                i=0
                while n != 1:
@@ -193,43 +212,61 @@ mod tests {
                  else:
                    n=3*n+1
                  i=i+1
-               print(i)"#, "111\n");
+               print(i)"#,
+            "111\n",
+        );
 
-        test_run_case("simple function",
-            "def hi():\n  print(\"hi\")\nhi()", "hi\n");
+        test_run_case(
+            "simple function",
+            "def hi():\n  print(\"hi\")\nhi()",
+            "hi\n",
+        );
 
-        test_run_case("simple 1-arg function",
-            "def f(x):\n  print x+1\nf(1)", "2\n");
+        test_run_case(
+            "simple 1-arg function",
+            "def f(x):\n  print x+1\nf(1)",
+            "2\n",
+        );
 
-        test_run_case("simple multi-args function",
-            "def f(x,y):\n  print x+y\nf(1,2)", "3\n");
+        test_run_case(
+            "simple multi-args function",
+            "def f(x,y):\n  print x+y\nf(1,2)",
+            "3\n",
+        );
 
-test_run_case("simple return function",
-"def add(a, b):
+        test_run_case(
+            "simple return function",
+            "def add(a, b):
   return a + b
 print(add(1, 2))
 print(add(\"a\", \"b\"))
-print(add(9.9, True))", "3\nab\n10.9\n");
+print(add(9.9, True))",
+            "3\nab\n10.9\n",
+        );
 
-test_run_case(
-"fibonacci",
-"def fib(n):
+        test_run_case(
+            "fibonacci",
+            "def fib(n):
   if n < 2:
     return n
   return fib(n-1) + fib(n-2)
-print(fib(10))", "55\n");
+print(fib(10))",
+            "55\n",
+        );
 
-test_run_case(
-"nested function",
-"def f():
+        test_run_case(
+            "nested function",
+            "def f():
   def g():
     print(1)
   g()
-f()", "1\n");
+f()",
+            "1\n",
+        );
 
-test_run_case(
-"nested function, with closure environment and return function",
-"def f():
+        test_run_case(
+            "nested function, with closure environment and return function",
+            "def f():
   i=0
   def count():
     nonlocal i
@@ -239,17 +276,21 @@ test_run_case(
 c = f()
 c()
 c()
-c()", "1\n2\n3\n");
+c()",
+            "1\n2\n3\n",
+        );
 
-test_run_case(
-"broken closure code",
-"a=\"global\"
+        test_run_case(
+            "broken closure code",
+            "a=\"global\"
 def f():
   def print_A():
     print(a)
   print_A()
   a=\"local\"
   print_A()
-f()", "global\nglobal\n");
+f()",
+            "global\nglobal\n",
+        );
     }
 }
