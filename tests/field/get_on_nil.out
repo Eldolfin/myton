@@ -1,7 +1,0 @@
-[31merror[error]: 'NoneType' object has no attribute 'bar'
------ Traceback -----
-  ┌─ <unknown>:1:8
-  | 
-1 | None.bar
-  |         ^
-[0m

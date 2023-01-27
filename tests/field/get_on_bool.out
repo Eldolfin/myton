@@ -1,7 +1,0 @@
-[31merror[error]: 'bool' object has no attribute 'foo'
------ Traceback -----
-  ┌─ <unknown>:1:8
-  | 
-1 | True.foo
-  |         ^
-[0m

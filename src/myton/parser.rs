@@ -218,6 +218,13 @@ impl Parser {
                         value,
                         self.current
                     )))
+                } else if let Some(this) = get.object.as_any().downcast_ref::<This>().cloned() {
+                    Ok(Box::new(Set::new (
+                        Box::new(this.clone()),
+                        this.keyword.clone(),
+                        value,
+                        self.current
+                    )))
                 } else {
                     Err(Traceback {
                         message: Some("Only instances have fields".to_string()),

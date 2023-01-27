@@ -1,7 +1,7 @@
 use std::any::Any;
 
-use super::class::Instance;
-use super::environment::{Env, make_env_enclosed};
+use super::class::get_from_refcell;
+use super::environment::Env;
 use super::token::{Token, TokenKind};
 use super::types::{TypeKind, DynValue};
 use super::traceback::Traceback;
@@ -399,12 +399,13 @@ impl Call {
 impl Evaluable for Get {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let object = self.object.eval(env)?;
-        if let Some(instance) = object.as_instance() {
-            if let Some(value) = instance.get(&self.name.value) {
+        if let Some(mut instance) = object.as_instance() {
+            // if let Some(value) = instance.borrow().get(&self.name.value) {
+            if let Some(value) = get_from_refcell(instance.clone(), &self.name.value) {
                 return Ok(value);
             } else {
                 return Err(Traceback {
-                    message: Some(format!("'{}' object has no attribute '{}'", instance.class.name, self.name.value)),
+                    message: Some(format!("'{}' object has no attribute '{}'", instance.borrow().class.name, self.name.value)),
                     pos: self.name.pos.unwrap(),
                     ..Default::default()
                 });
@@ -433,11 +434,11 @@ impl Evaluable for Set {
     fn eval(&self, env: &Env) -> Result<DynValue, Traceback> {
         let object = self.object.eval(env)?;
 
-        let borrow = object.value.borrow_mut().downcast_mut::<Instance>().cloned();
+        let borrow = object.as_instance();
 
-        if let Some(mut instance) = borrow {
+        if let Some(instance) = borrow {
             let value = self.value.eval(env)?;
-            instance.set(self.name.value.clone(), value.clone());
+            instance.borrow_mut().set(self.name.value.clone(), value.clone());
             Ok(value)
         } else {
             Err(Traceback {
@@ -496,7 +497,7 @@ impl Evaluable for Super {
             .unwrap();
 
         if let Some(method) = superclass.find_method(&self.method.value) {
-            Ok(DynValue::from(method.bind(DynValue::from(object))))
+            Ok(DynValue::from(method.bind(object)))
         } else {
             Err(Traceback {
                 message: Some(format!("Undefined property '{}'", self.method.value)),

@@ -1,7 +1,0 @@
-[31merror[error]: Only instances have fields
------ Traceback -----
-  ┌─ <unknown>:1:19
-  | 
-1 | "str".foo = "value"
-  |                    ^
-[0m

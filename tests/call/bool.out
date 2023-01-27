@@ -1,7 +1,0 @@
-[31merror[error]: 'bool' object is not callable
------ Traceback -----
-  ┌─ <unknown>:1:6
-  | 
-1 | True()
-  |       ^
-[0m

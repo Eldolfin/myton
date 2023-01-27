@@ -1,7 +1,0 @@
-[31merror[error]: 'class' object has no attribute 'bar'
------ Traceback -----
-  ┌─ <unknown>:2:7
-  | class Foo:
-2 | Foo.bar = "value"
-  |        ^
-[0m

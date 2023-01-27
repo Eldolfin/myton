@@ -1,7 +1,0 @@
-[31merror[error]: 'str' object is not callable
------ Traceback -----
-  ┌─ <unknown>:6:9
-  | 
-6 | foo.bar()
-  |          ^
-[0m

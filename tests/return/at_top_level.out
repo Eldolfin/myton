@@ -1,7 +1,0 @@
-[31merror[error]: 'return' outside function
------ Traceback -----
-  ┌─ <unknown>:1:0
-  | 
-1 | return "wat" # Error at 'return': Can't return from top-level code.
-  | ^
-[0m

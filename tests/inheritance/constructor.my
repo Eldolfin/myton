@@ -1,0 +1,25 @@
+class A:
+  def __init__(param):
+    this.field = param
+
+  def init():
+    this.field = "init"
+
+  def test():
+    this.field = 1
+    print this.field
+  
+
+
+#class B(A):
+#  def test():
+#    this.field = 2
+#    print this.field
+#    super.test()
+#    print this.field
+
+#b = B("value")
+#b.test() # expect: value
+a = A("value")
+a.field = 2
+a.test()

@@ -2,6 +2,7 @@ use super::statement::*;
 use super::expression::*;
 use super::token::Token;
 use super::traceback::Traceback;
+use super::traceback::TracebackKind;
 use std::collections::HashMap;
 
 
@@ -162,7 +163,12 @@ impl Resolver {
 
     fn reteurn(&mut self, stmt: &ReturnStatement) -> ResolveResult {
         if matches!(self.current_function, FunctionType::None) {
-            return Err(Traceback::from(format!("'return' outside function")));
+            return Err(Traceback {
+                message: Some(format!("'return' outside function")),
+                pos: stmt.keyword.pos.unwrap(),
+                tipe: TracebackKind::ResolveError,
+                ..Default::default()
+            });
         }
 
         if let Some(value) = &stmt.value {
@@ -205,6 +211,7 @@ impl Resolver {
                 return Err(Traceback {
                     message: Some(format!("A class cannot inherit from itself.")),
                     pos: class.name.pos.unwrap(),
+                    tipe: TracebackKind::ResolveError,
                     ..Default::default()
                 });
             }
@@ -286,7 +293,12 @@ impl Resolver {
 
     fn this(&mut self, expr: &This) -> ResolveResult {
         if matches!(self.current_class, ClassType::None) {
-            return Err(Traceback::from(format!("Cannot use 'this' outside of a class.")));
+            return Err(Traceback {
+                message: Some(format!("Cannot use 'this' outside of a class.")),
+                pos: expr.keyword.pos.unwrap(),
+                tipe: TracebackKind::ResolveError,
+                ..Default::default()
+            });
         }
 
         let casted :EXPR = Box::new(expr.clone());
@@ -306,12 +318,14 @@ impl Resolver {
             return Err(Traceback {
                 message: Some(format!("Cannot use 'super' outside of a class.")),
                 pos: expr.keyword.pos.unwrap(),
+                tipe: TracebackKind::ResolveError,
                 ..Default::default()
             });
         } else if !matches!(self.current_class, ClassType::Subclass) {
             return Err(Traceback {
                 message: Some(format!("Cannot use 'super' in a class with no superclass.")),
                 pos: expr.keyword.pos.unwrap(),
+                tipe: TracebackKind::ResolveError,
                 ..Default::default()
             });
         }

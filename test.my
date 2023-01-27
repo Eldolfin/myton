@@ -1,0 +1,17 @@
+class A:
+  def __init__():
+    self.init()
+
+  def init():
+    self.a = 1
+    self.b = 2
+    self.c = 3
+  
+  def show():
+    print(self.a)
+    print(self.b)
+    print(self.c)
+
+a = A()
+a.init()
+a.show()

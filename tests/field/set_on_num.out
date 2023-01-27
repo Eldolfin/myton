@@ -1,7 +1,0 @@
-[31merror[error]: Only instances have fields
------ Traceback -----
-  ┌─ <unknown>:1:17
-  | 
-1 | 123.foo = "value"
-  |                  ^
-[0m

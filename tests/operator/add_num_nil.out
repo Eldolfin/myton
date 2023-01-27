@@ -1,7 +1,0 @@
-[31merror[error]: unsupported operand type(s) for +: 'number' and 'NoneType'
------ Traceback -----
-  ┌─ <unknown>:1:8
-  | 
-1 | print(1+None)
-  |         ^
-[0m

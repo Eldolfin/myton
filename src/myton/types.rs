@@ -187,7 +187,7 @@ impl DynValue {
             TypeKind::Nil => "None".to_string(),
             TypeKind::List =>
                 format!("[{}]", &self.as_list().unwrap().iter().map(|x| x.as_string()).collect::<Vec<String>>().join(", ")),
-            TypeKind::Instance => format!("<{} object>", self.as_instance().unwrap().class.name),
+            TypeKind::Instance => format!("<{} object>", self.as_instance().unwrap().borrow().class.name),
             _ => format!("<{} {}>", self.tipe, self.name.as_ref().unwrap_or(&"unnamed".to_string())),
         }
     }
@@ -226,9 +226,9 @@ impl DynValue {
         }
     }
 
-    pub fn as_instance(&self) -> Option<Instance> {
+    pub fn as_instance(&self) -> Option<Rc<RefCell<Instance>>> {
         if self.tipe == TypeKind::Instance {
-            Some(self.value.borrow().downcast_ref::<Instance>().unwrap().clone())
+            Some(self.value.borrow().downcast_ref::<Rc<RefCell<Instance>>>().unwrap().clone())
         } else {
             None
         }
@@ -307,6 +307,12 @@ impl From<Class> for DynValue {
 
 impl From<Instance> for DynValue {
     fn from(instance: Instance) -> Self {
+        Self::new(Box::new(instance), TypeKind::Instance)
+    }
+}
+
+impl From<Rc<RefCell<Instance>>> for DynValue {
+    fn from(instance: Rc<RefCell<Instance>>) -> Self {
         Self::new(Box::new(instance), TypeKind::Instance)
     }
 }

@@ -1,7 +1,0 @@
-[31merror[error]: Expected 2 arguments but got 4
------ Traceback -----
-  ┌─ <unknown>:4:13
-  |   print(b)
-4 | f(1, 2, 3, 4)
-  |              ^
-[0m

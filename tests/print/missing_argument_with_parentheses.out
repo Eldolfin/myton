@@ -1,7 +1,0 @@
-[31merror[error]: Expect expression.
------ Traceback -----
-  ┌─ <unknown>:1:7
-  | 
-1 | print()
-  |        ^
-[0m

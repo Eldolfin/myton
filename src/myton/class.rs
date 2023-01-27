@@ -14,6 +14,7 @@ pub struct Class {
     pub superclass: Option<Box<Class>>,
 }
 
+#[derive(Clone)]
 pub struct Instance {
     pub class: Class,
     pub fields: Rc<RefCell<HashMap<String, DynValue>>>,
@@ -51,7 +52,8 @@ impl Instance {
         if let Some(val) = self.fields.borrow().get(name) {
             Some(val.clone())
         } else if let Some(method) = self.class.find_method(name) {
-            Some(DynValue::from(method.bind(DynValue::from(self.clone()))))
+            let refcell = Rc::new(RefCell::new(self.clone()));
+            Some(DynValue::from(method.bind(refcell)))
         } else {
             None
         }
@@ -62,25 +64,27 @@ impl Instance {
     }
 }
 
-impl Clone for Instance {
-    fn clone(&self) -> Self {
-        Self {
-            class: self.class.clone(),
-            fields: self.fields.clone(),
-        }
+pub fn get_from_refcell(instance: Rc<RefCell<Instance>>, name: &str) -> Option<DynValue> {
+    if let Some(val) = instance.borrow().fields.borrow().get(name) {
+        Some(val.clone())
+    } else if let Some(method) = instance.borrow().class.find_method(name) {
+        Some(DynValue::from(method.bind(instance.clone())))
+    } else {
+        None
     }
 }
 
+
 impl Callable for Class {
     fn call(&self, env: &Env, args: Vec<DynValue>) -> Result<DynValue, Traceback> {
-        let instance = Instance::new(self.clone());
+        let refcell = Rc::new(RefCell::new(Instance::new(self.clone())));
 
         if let Some(initializer) = self.find_method("__init__"){
-            initializer.bind(DynValue::from(instance.clone())).call(env, args)?;
+            initializer.bind(refcell.clone()).call(env, args)?;
         }
 
 
-        Ok(DynValue::from(instance))
+        Ok(DynValue::from(refcell))
     }
 
     fn arity(&self) -> usize {

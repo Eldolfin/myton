@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, Clone)]
 pub enum TracebackKind {
     Error,
+    ResolveError,
     // Tracebacks are also a way to return values from functions
     Return,
 }
@@ -53,7 +54,8 @@ impl Traceback {
 impl Display for TracebackKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TracebackKind::Error => write!(f, "error"),
+            TracebackKind::Error => write!(f, "runtime error"),
+            TracebackKind::ResolveError => write!(f, "resolve error"),
             TracebackKind::Return => write!(f, "return"),
         }
     }

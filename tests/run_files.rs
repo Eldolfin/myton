@@ -30,7 +30,7 @@ fn test_files() {
             std::fs::write(out_path, output).unwrap();
         } else {
             if let Ok(expected) = std::fs::read_to_string(out_path) {
-                let message = format!("expected:\n{}\ngot:\n{}", &expected, &output);
+                let message = format!("\nfile: {}\nexpected:\n{}\ngot:\n{}", path, &expected, &output);
                 assert_eq!(output, expected, "{}", message);
             } else {
                 //panic!("No .out file found for {}", path);

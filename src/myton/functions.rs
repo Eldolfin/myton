@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use super::class::Instance;
 use super::types::DynValue;
 use super::traceback::{Traceback, TracebackKind};
 use super::environment::{Env, make_env_enclosed};
@@ -10,11 +14,13 @@ pub trait Callable {
     fn arity(&self) -> usize;
 }
 
+#[derive(Clone)]
 pub struct Function {
     pub statement: FunctionStatement,
     pub closure: Env,
 }
 
+#[derive(Clone)]
 pub struct NativeFunction {
     pub func: fn(&Env, Vec<DynValue>) -> Result<DynValue, Traceback>,
     pub nb_args: usize,
@@ -28,9 +34,9 @@ impl Function {
         }
     }
 
-    pub fn bind(&self, instance: DynValue) -> Self {
+    pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Self {
         let env = make_env_enclosed(self.closure.clone());
-        env.borrow_mut().set("this".to_string(), instance);
+        env.borrow_mut().set("this".to_string(), DynValue::from(instance));
         Self {
             statement: self.statement.clone(),
             closure: env,
@@ -68,23 +74,5 @@ impl Callable for NativeFunction {
 
     fn arity(&self) -> usize {
         self.nb_args
-    }
-}
-
-impl Clone for Function {
-    fn clone(&self) -> Self {
-        Function {
-            statement: self.statement.clone(),
-            closure: self.closure.clone(),
-        }
-    }
-}
-
-impl Clone for NativeFunction {
-    fn clone(&self) -> Self {
-        NativeFunction {
-            func: self.func,
-            nb_args: self.nb_args,
-        }
     }
 }

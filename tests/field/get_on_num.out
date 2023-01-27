@@ -1,7 +1,0 @@
-[31merror[error]: 'number' object has no attribute 'foo'
------ Traceback -----
-  ┌─ <unknown>:1:7
-  | 
-1 | 123.foo
-  |        ^
-[0m

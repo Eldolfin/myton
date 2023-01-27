@@ -1,7 +1,0 @@
-[31merror[error]: 'str' object is not callable
------ Traceback -----
-  ┌─ <unknown>:1:18
-  | 
-1 | "not a function"()
-  |                   ^
-[0m

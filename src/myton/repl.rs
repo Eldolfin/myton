@@ -111,7 +111,6 @@ impl Repl {
     }
     
     pub fn skiplines(&mut self, n: u16) {
-        let old_cursor = self.cursor;
         self.cursor.1 = (self.cursor.1 + n) % self.term_size.1;
         self.update_cursor();
     }

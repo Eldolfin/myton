@@ -1,7 +1,0 @@
-[31merror[error]: 'NoneType' object is not callable
------ Traceback -----
-  ┌─ <unknown>:1:6
-  | 
-1 | None()
-  |       ^
-[0m
